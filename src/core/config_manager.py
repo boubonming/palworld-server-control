@@ -30,7 +30,7 @@ AUTO_START_VALUE_NAME = "PalworldServerControl"
 PALWORLD_BACKUP_NAME = "PalWorldSettings.ini.backup"
 STRING_SETTING_KEYS = {
     "RandomizerSeed", "ServerName", "ServerDescription", "AdminPassword", "ServerPassword",
-    "PublicIP", "Region", "BanListURL", "DenyTechnologyList", "LogFormatType",
+    "PublicIP", "Region", "BanListURL", "LogFormatType",
     "AdditionalDropItemWhenPlayerKillingInPvPMode",
 }
 

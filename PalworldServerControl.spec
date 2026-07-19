@@ -5,7 +5,7 @@ a = Analysis(
     ['src\\main.py'],
     pathex=['src'],
     binaries=[],
-    datas=[('metadata.json', '.'), ('assets/app_icon.ico', 'assets')],
+    datas=[('metadata.json', '.'), ('technology_ids.json', '.'), ('assets/app_icon.ico', 'assets')],
     hiddenimports=['integrations.server_cog'],
     hookspath=[],
     hooksconfig={},

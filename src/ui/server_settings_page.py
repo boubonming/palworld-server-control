@@ -5,6 +5,7 @@ from PySide6.QtCore import Signal
 from PySide6.QtGui import QDoubleValidator, QIntValidator
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -24,8 +25,15 @@ from PySide6.QtWidgets import (
 )
 
 from core import config_manager
-from core.setting_metadata import get_setting_tooltip
+from core.setting_metadata import (
+    get_setting_numeric_bounds,
+    get_setting_numeric_hint,
+    get_setting_tooltip,
+    get_technology_options,
+)
 from ui.page import Page
+from ui.multi_select_field import MultiSelectField
+from ui.numeric_setting_field import NumericSettingField
 from ui.password_field import PasswordLineEdit
 from shared.status import ServerState
 
@@ -113,7 +121,7 @@ class ServerSettingsPage(Page):
         "Experience & Pal Capture": {"ExpRate", "PalCaptureRate", "PalSpawnNumRate", "PalEggDefaultHatchingTime", "WorkSpeedRate", "MonsterFarmActionSpeedRate"},
         "Player & Pal Survival": {"PlayerStomachDecreaceRate", "PlayerStaminaDecreaceRate", "PlayerAutoHPRegeneRate", "PlayerAutoHpRegeneRateInSleep", "PalStomachDecreaceRate", "PalStaminaDecreaceRate", "PalAutoHPRegeneRate", "PalAutoHPRegeneRateInSleep", "ItemWeightRate", "EquipmentDurabilityDamageRate", "ItemCorruptionMultiplier"},
         "Combat & Damage": {"PalDamageRateAttack", "PalDamageRateDefense", "PlayerDamageRateAttack", "PlayerDamageRateDefense", "bEnableInvaderEnemy", "bActiveUNKO", "bEnableAimAssistPad", "bEnableAimAssistKeyboard", "bEnableDefenseOtherGuildPlayer", "bEnableVoiceChat"},
-        "Building, Gathering & Drops": {"BuildObjectHpRate", "BuildObjectDamageRate", "BuildObjectDeteriorationDamageRate", "CollectionDropRate", "CollectionObjectHpRate", "CollectionObjectRespawnSpeedRate", "EnemyDropItemRate", "DropItemMaxNum", "PhysicsActiveDropItemMaxNum", "DropItemMaxNum_UNKO", "DropItemAliveMaxHours", "SupplyDropSpan", "MaxBuildingLimitNum"},
+        "Building, Gathering & Drops": {"BuildObjectHpRate", "BuildObjectDamageRate", "BuildObjectDeteriorationDamageRate", "CollectionDropRate", "CollectionObjectHpRate", "CollectionObjectRespawnSpeedRate", "EnemyDropItemRate", "DropItemMaxNum", "PhysicsActiveDropItemMaxNum", "DropItemMaxNum_UNKO", "DropItemAliveMaxHours", "SupplyDropSpan", "MaxBuildingLimitNum", "DenyTechnologyList"},
         "Bases, Guilds & Multiplayer": {"BaseCampMaxNum", "BaseCampWorkerMaxNum", "GuildPlayerMaxNum", "BaseCampMaxNumInGuild", "CoopPlayerMaxNum", "bAutoResetGuildNoOnlinePlayers", "AutoResetGuildTimeNoOnlinePlayers", "bCanPickupOtherGuildDeathPenaltyDrop", "GuildRejoinCooldownMinutes", "MaxGuildsPerFrame"},
         "Server Identity & Access": {"ServerName", "ServerDescription", "ServerPassword", "AdminPassword", "Region", "bUseAuth", "bAllowClientMod", "bShowPlayerList", "ChatPostLimitPerMinute", "BanListURL"},
         "Network, API & RCON": {"PublicPort", "PublicIP", "RCONEnabled", "RCONPort", "RESTAPIEnabled", "RESTAPIPort", "CrossplayPlatforms", "AllowConnectPlatform"},
@@ -135,6 +143,28 @@ class ServerSettingsPage(Page):
         "PvP & Death Penalties": "☠️",
         "Voice Chat & Accessibility": "🔊",
         "Advanced / New Settings": "🧩",
+    }
+
+    SETTING_CHOICES = {
+        "DeathPenalty": [
+            ("No drops", "None"),
+            ("Drop items except equipment", "Item"),
+            ("Drop items and equipment", "ItemAndEquipment"),
+            ("Drop items, equipment, and team Pals", "All"),
+        ],
+        "RandomizerType": [
+            ("No randomization", "None"),
+            ("Randomize per region", "Region"),
+            ("Fully randomized", "All"),
+        ],
+        "LogFormatType": [("Text", "Text"), ("JSON", "Json")],
+    }
+
+    MULTI_SELECT_CHOICES = {
+        "CrossplayPlatforms": (
+            [(platform, platform) for platform in ("Steam", "Xbox", "PS5", "Mac")],
+            False,
+        ),
     }
 
     def reload_settings(self):
@@ -177,6 +207,8 @@ class ServerSettingsPage(Page):
                 self.setting_categories[key] = category
                 if isinstance(field, QCheckBox):
                     field.stateChanged.connect(self.mark_dirty)
+                elif isinstance(field, QComboBox):
+                    field.currentIndexChanged.connect(self.mark_dirty)
                 else:
                     field.textChanged.connect(self.mark_dirty)
             scroll.setWidget(panel)
@@ -276,11 +308,33 @@ class ServerSettingsPage(Page):
             field = QCheckBox()
             field.setChecked(lowered == "true")
             return field
+        if key in ServerSettingsPage.SETTING_CHOICES:
+            field = QComboBox()
+            choices = list(ServerSettingsPage.SETTING_CHOICES[key])
+            if value not in {choice_value for _label, choice_value in choices}:
+                choices.append((f"Current value: {value}", value))
+            for label, choice_value in choices:
+                field.addItem(label, choice_value)
+            field.setCurrentIndex(field.findData(value))
+            return field
+        if key == "DenyTechnologyList":
+            return MultiSelectField(value, get_technology_options(), quote_values=True)
+        if key in ServerSettingsPage.MULTI_SELECT_CHOICES:
+            choices, quote_values = ServerSettingsPage.MULTI_SELECT_CHOICES[key]
+            return MultiSelectField(value, choices, quote_values=quote_values)
         is_password = "Password" in key or key == "AdminPassword"
         field = PasswordLineEdit(value) if is_password else QLineEdit(value)
         if re.fullmatch(r"-?\d+", value):
+            minimum, maximum = get_setting_numeric_bounds(key)
+            hint = get_setting_numeric_hint(key)
+            if hint:
+                return NumericSettingField(value, minimum, maximum, hint)
             field.setValidator(QIntValidator(field))
         elif re.fullmatch(r"-?\d+\.\d+", value):
+            minimum, maximum = get_setting_numeric_bounds(key)
+            hint = get_setting_numeric_hint(key)
+            if hint:
+                return NumericSettingField(value, minimum, maximum, hint)
             validator = QDoubleValidator(field)
             validator.setNotation(QDoubleValidator.StandardNotation)
             field.setValidator(validator)
@@ -290,6 +344,8 @@ class ServerSettingsPage(Page):
     def field_value(field):
         if isinstance(field, QCheckBox):
             return "True" if field.isChecked() else "False"
+        if isinstance(field, QComboBox):
+            return field.currentData()
         return field.text()
 
     def current_values(self):
@@ -319,8 +375,10 @@ class ServerSettingsPage(Page):
             self.update_editability()
             return
         for key, field in self.setting_fields.items():
-            if isinstance(field, QLineEdit) and field.validator() and not field.hasAcceptableInput():
-                self.feedback.setText(f"{self.display_name(key)} must contain a valid number.")
+            validator = getattr(field, "validator", None)
+            if validator and validator() and not field.hasAcceptableInput():
+                message = getattr(field, "validation_message", "must contain a valid number.")
+                self.feedback.setText(f"{self.display_name(key)} {message}")
                 return
         updates = {key: self.field_value(field) for key, field in self.setting_fields.items()}
         try:
