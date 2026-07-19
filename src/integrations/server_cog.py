@@ -58,9 +58,31 @@ class ServerControl(commands.Cog):
         return True
 
     @commands.command(name="start")
-    async def start_server(self, ctx):
+    async def start_server(self, ctx, idle_shutdown=None):
         if not self.command_allowed(ctx):
             return
+
+        idle_shutdown_override = None
+        if idle_shutdown is not None:
+            if idle_shutdown.lower() == "off":
+                idle_shutdown_override = False
+            else:
+                try:
+                    idle_shutdown_override = int(idle_shutdown)
+                except ValueError:
+                    idle_shutdown_override = 0
+                if not (
+                    config_manager.MIN_AUTO_SHUTDOWN_EMPTY_MINUTES
+                    <= idle_shutdown_override
+                    <= config_manager.MAX_AUTO_SHUTDOWN_EMPTY_MINUTES
+                ):
+                    await ctx.send(
+                        "Usage: `!start`, `!start <minutes>`, or `!start off` "
+                        f"(minutes: {config_manager.MIN_AUTO_SHUTDOWN_EMPTY_MINUTES}-"
+                        f"{config_manager.MAX_AUTO_SHUTDOWN_EMPTY_MINUTES})."
+                    )
+                    self.record_activity(ctx, "Failed: invalid idle shutdown override")
+                    return
 
         if await asyncio.to_thread(config_manager.is_server_process_running):
             await ctx.send("Server is already running on the host PC.")
@@ -76,18 +98,29 @@ class ServerControl(commands.Cog):
 
         try:
             subprocess.Popen(
-                [server_exe, "-publiclobby"],
+                config_manager.get_server_launch_command(),
                 cwd=server_dir if server_dir else None,
                 creationflags=subprocess.CREATE_NO_WINDOW,
             )
-            config_manager.set_server_launch_source(("discord", ctx.channel.id))
+            config_manager.set_server_launch_source(
+                ("discord", ctx.channel.id), idle_shutdown_override
+            )
             await self.bot.change_presence(
                 status=discord.Status.online,
                 activity=discord.Game(name="Palworld Server (ONLINE)"),
             )
             bot_module.signals.status_changed.emit(ServerStatus(ServerState.RUNNING))
-            await ctx.send("Game server started successfully.")
-            self.record_activity(ctx, "Server started")
+            if idle_shutdown_override is False:
+                idle_policy = " Idle shutdown is disabled for this session."
+            elif idle_shutdown_override is not None:
+                idle_policy = (
+                    f" Idle shutdown is set to {idle_shutdown_override} empty minutes "
+                    "for this session."
+                )
+            else:
+                idle_policy = ""
+            await ctx.send(f"Game server started successfully.{idle_policy}")
+            self.record_activity(ctx, f"Server started{idle_policy}")
         except Exception as exc:
             await ctx.send(f"Failed to launch executable: {exc}")
             self.record_activity(ctx, f"Failed to start server: {exc}")

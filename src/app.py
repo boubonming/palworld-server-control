@@ -228,7 +228,7 @@ class MainWindow(QMainWindow):
         self.close()
 
     def _finish_exit(self, status):
-        if self._exit_requested and status == "Discord bot stopped":
+        if self._exit_requested and discord_bot.discord_manager.state == "stopped":
             self.close()
 
     def closeEvent(self, event):
@@ -246,13 +246,13 @@ class MainWindow(QMainWindow):
         if self.tray_icon:
             self.tray_icon.hide()
         self.auto_shutdown_monitor.stop()
-        config_manager.shutdown_server_for_exit()
         if discord_bot.discord_manager.state != "stopped":
             self._exit_requested = True
             discord_bot.discord_manager.stop()
             event.ignore()
             return
         event.accept()
+        QApplication.quit()
 
 
 def main():

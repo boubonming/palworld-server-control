@@ -104,6 +104,7 @@ class DiscordBotManager:
         self._lock = threading.Lock()
         self._state = "stopped"
         self._stop_requested = False
+        self._loop_ready = threading.Event()
 
     @property
     def is_running(self):
@@ -124,6 +125,7 @@ class DiscordBotManager:
                 return False
             self._state = "starting"
             self._stop_requested = False
+            self._loop_ready.clear()
             global bot
             bot = create_bot()
             self.thread = threading.Thread(target=self._run, args=(token, bot), daemon=True)
@@ -134,6 +136,7 @@ class DiscordBotManager:
     def _run(self, token: str, bot_instance):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
+        self._loop_ready.set()
         with self._lock:
             stop_requested = self._stop_requested
         if stop_requested:
@@ -170,7 +173,23 @@ class DiscordBotManager:
         signals.bot_status_changed.emit("Stopping Discord bot...")
         if loop:
             threading.Thread(target=self._close_bot, args=(loop, bot), daemon=True).start()
+        else:
+            # Exit can be requested after start() changes the state but before
+            # the worker has published its event loop. Wait for that handoff
+            # so the bot is still closed and the GUI can finish exiting.
+            threading.Thread(
+                target=self._close_when_ready,
+                args=(bot,),
+                daemon=True,
+            ).start()
         return True
+
+    def _close_when_ready(self, bot_instance):
+        if not self._loop_ready.wait(timeout=5):
+            return
+        loop = self.loop
+        if loop:
+            self._close_bot(loop, bot_instance)
 
     def _close_bot(self, loop, bot_instance):
         future = asyncio.run_coroutine_threadsafe(bot_instance.close(), loop)

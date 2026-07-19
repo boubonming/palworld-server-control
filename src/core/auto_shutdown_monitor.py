@@ -21,6 +21,7 @@ class AutoShutdownMonitor(QObject):
         self._server_was_running = False
         self._server_process_id = None
         self._session_launch_source = None
+        self._session_idle_shutdown_override = None
         self._stop_event = threading.Event()
         self._thread = None
 
@@ -62,6 +63,7 @@ class AutoShutdownMonitor(QObject):
                 self._server_was_running = False
                 self._server_process_id = None
                 self._session_launch_source = None
+                self._session_idle_shutdown_override = None
                 config_manager.clear_server_launch_source()
                 self.status_changed.emit(ServerStatus(ServerState.STOPPED))
             return
@@ -70,6 +72,9 @@ class AutoShutdownMonitor(QObject):
             self.empty_minutes_counter = 0
             self._server_process_id = process_id
             self._session_launch_source = config_manager.get_server_launch_source()
+            self._session_idle_shutdown_override = (
+                config_manager.get_server_idle_shutdown_override()
+            )
         self._server_was_running = True
 
         try:
@@ -86,7 +91,16 @@ class AutoShutdownMonitor(QObject):
 
             self.empty_minutes_counter += 1
             self.status_changed.emit(ServerStatus(ServerState.RUNNING, "Running (0 Players)"))
-            shutdown_minutes = config_manager.get_auto_shutdown_empty_minutes()
+            if self._session_idle_shutdown_override is False:
+                self.empty_minutes_counter = 0
+                return
+            if self._session_idle_shutdown_override is None:
+                if not config_manager.get_auto_shutdown_enabled():
+                    self.empty_minutes_counter = 0
+                    return
+                shutdown_minutes = config_manager.get_auto_shutdown_empty_minutes()
+            else:
+                shutdown_minutes = self._session_idle_shutdown_override
             if self.empty_minutes_counter < shutdown_minutes:
                 return
 

@@ -6,20 +6,25 @@ import shutil
 import sys
 import subprocess
 import threading
-import time
 
 from core.palworld_ini import extract_option_settings, parse_option_settings
 
 CONFIG = {}
-EXE_NAME = "PalServer-Win64-Test-Cmd.exe"
+SERVER_BINARY_NAMES = (
+    "PalServer-Win64-Shipping-Cmd.exe",
+    "PalServer-Win64-Test-Cmd.exe",
+)
 DEFAULT_GUI_CLOSE_BEHAVIOR = "exit"
 VALID_GUI_CLOSE_BEHAVIORS = {"minimize", "exit"}
 DEFAULT_AUTO_START = False
 DEFAULT_DISCORD_BOT_AUTO_START = True
+DEFAULT_SILENT_SERVER_LAUNCH = False
+DEFAULT_AUTO_SHUTDOWN_ENABLED = True
 DEFAULT_AUTO_SHUTDOWN_EMPTY_MINUTES = 5
 MIN_AUTO_SHUTDOWN_EMPTY_MINUTES = 1
 MAX_AUTO_SHUTDOWN_EMPTY_MINUTES = 1440
 _server_launch_source = None
+_server_idle_shutdown_override = None
 _server_launch_source_lock = threading.Lock()
 AUTO_START_VALUE_NAME = "PalworldServerControl"
 PALWORLD_BACKUP_NAME = "PalWorldSettings.ini.backup"
@@ -50,6 +55,8 @@ def load_config():
             "gui_close_behavior": DEFAULT_GUI_CLOSE_BEHAVIOR,
             "auto_start": DEFAULT_AUTO_START,
             "discord_bot_auto_start": DEFAULT_DISCORD_BOT_AUTO_START,
+            "silent_server_launch": DEFAULT_SILENT_SERVER_LAUNCH,
+            "auto_shutdown_enabled": DEFAULT_AUTO_SHUTDOWN_ENABLED,
             "auto_shutdown_empty_minutes": DEFAULT_AUTO_SHUTDOWN_EMPTY_MINUTES,
         }
         save_config()
@@ -59,6 +66,8 @@ def load_config():
     CONFIG.setdefault("gui_close_behavior", DEFAULT_GUI_CLOSE_BEHAVIOR)
     CONFIG.setdefault("auto_start", DEFAULT_AUTO_START)
     CONFIG.setdefault("discord_bot_auto_start", DEFAULT_DISCORD_BOT_AUTO_START)
+    CONFIG.setdefault("silent_server_launch", DEFAULT_SILENT_SERVER_LAUNCH)
+    CONFIG.setdefault("auto_shutdown_enabled", DEFAULT_AUTO_SHUTDOWN_ENABLED)
     CONFIG.setdefault("auto_shutdown_empty_minutes", DEFAULT_AUTO_SHUTDOWN_EMPTY_MINUTES)
     CONFIG.setdefault("palworld_channel_ids", [])
     return CONFIG
@@ -134,6 +143,20 @@ def get_discord_bot_auto_start():
 
 def set_discord_bot_auto_start(enabled):
     CONFIG["discord_bot_auto_start"] = bool(enabled)
+    save_config()
+
+def get_silent_server_launch():
+    return bool(CONFIG.get("silent_server_launch", DEFAULT_SILENT_SERVER_LAUNCH))
+
+def set_silent_server_launch(enabled):
+    CONFIG["silent_server_launch"] = bool(enabled)
+    save_config()
+
+def get_auto_shutdown_enabled():
+    return bool(CONFIG.get("auto_shutdown_enabled", DEFAULT_AUTO_SHUTDOWN_ENABLED))
+
+def set_auto_shutdown_enabled(enabled):
+    CONFIG["auto_shutdown_enabled"] = bool(enabled)
     save_config()
 
 def get_auto_shutdown_empty_minutes():
@@ -327,11 +350,12 @@ def is_server_process_running():
     return get_server_process_id() is not None
 
 
-def set_server_launch_source(source):
-    """Records who launched the current server session for runtime notifications."""
-    global _server_launch_source
+def set_server_launch_source(source, idle_shutdown_override=None):
+    """Records the launch source and optional session-only idle policy override."""
+    global _server_launch_source, _server_idle_shutdown_override
     with _server_launch_source_lock:
         _server_launch_source = source
+        _server_idle_shutdown_override = idle_shutdown_override
 
 
 def get_server_launch_source():
@@ -339,52 +363,51 @@ def get_server_launch_source():
         return _server_launch_source
 
 
+def get_server_idle_shutdown_override():
+    """Returns False, a minute count, or None to use the saved default."""
+    with _server_launch_source_lock:
+        return _server_idle_shutdown_override
+
+
 def clear_server_launch_source():
-    set_server_launch_source(None)
-
-def _forward_server_output(process, output_callback):
-    try:
-        for line in process.stdout:
-            line = line.rstrip("\r\n")
-            if line:
-                output_callback(line)
-    except (OSError, ValueError):
-        # The pipe can close while the server is shutting down.
-        pass
+    set_server_launch_source(None, None)
 
 
-def start_server(output_callback=None):
-    """Starts the configured Palworld server without involving Discord."""
-    if is_server_process_running():
-        return False
-
+def get_server_launch_command():
+    """Builds the configured supported or windowless server launch command."""
     server_exe = CONFIG.get("palworld_exe_path")
     if not server_exe:
         raise FileNotFoundError("Server executable path is not configured.")
 
-    launch_options = {
-        "cwd": CONFIG.get("palworld_dir") or None,
-        "creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0),
-    }
-    if output_callback is not None:
-        launch_options.update(
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            bufsize=1,
-        )
+    if not get_silent_server_launch():
+        return [server_exe, "-publiclobby"]
 
-    process = subprocess.Popen([server_exe, "-publiclobby"], **launch_options)
+    server_dir = CONFIG.get("palworld_dir") or os.path.dirname(server_exe)
+    binaries_dir = os.path.join(server_dir, "Pal", "Binaries", "Win64")
+    for binary_name in SERVER_BINARY_NAMES:
+        process_exe = os.path.join(binaries_dir, binary_name)
+        if os.path.isfile(process_exe):
+            # This matches the command created by PalServer.exe, but lets this
+            # app apply CREATE_NO_WINDOW to the process that creates conhost.
+            return [process_exe, "Pal", "-publiclobby", "-NOCONSOLE"]
+
+    raise FileNotFoundError(
+        "Silent launch is unavailable because the internal PalServer executable was not found. "
+        "Disable silent launch in App Settings and try again."
+    )
+
+
+def start_server():
+    """Starts the configured Palworld server without involving Discord."""
+    if is_server_process_running():
+        return False
+
+    subprocess.Popen(
+        get_server_launch_command(),
+        cwd=CONFIG.get("palworld_dir") or None,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
     set_server_launch_source("app")
-    if output_callback is not None and process.stdout is not None:
-        threading.Thread(
-            target=_forward_server_output,
-            args=(process, output_callback),
-            name="palworld-console-output",
-            daemon=True,
-        ).start()
     return True
 
 def stop_server():
@@ -401,39 +424,4 @@ def stop_server():
     )
     if status not in (200, 202):
         raise RuntimeError(f"Server shutdown request returned HTTP {status}.")
-    return True
-
-
-def shutdown_server_for_exit(grace_period_seconds=10):
-    """Gracefully stops Palworld, then terminates leftovers before app exit."""
-    if not get_server_processes():
-        clear_server_launch_source()
-        return False
-
-    try:
-        stop_server()
-    except Exception:
-        # Exit must not leave the server alive just because the REST API failed.
-        pass
-
-    deadline = time.monotonic() + grace_period_seconds
-    while time.monotonic() < deadline:
-        if not get_server_processes():
-            clear_server_launch_source()
-            return True
-        time.sleep(0.25)
-
-    remaining = get_server_processes()
-    for process in remaining:
-        try:
-            process.terminate()
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            continue
-    _, alive = psutil.wait_procs(remaining, timeout=3)
-    for process in alive:
-        try:
-            process.kill()
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            continue
-    clear_server_launch_source()
     return True

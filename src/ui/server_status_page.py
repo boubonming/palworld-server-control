@@ -1,16 +1,16 @@
-from core import config_manager
+from datetime import datetime
 import urllib.error
 
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPlainTextEdit, QPushButton
 
+from core import config_manager
 from ui.page import Page
 from shared.status import ServerState, ServerStatus, status_stylesheet
 
 
 class ServerStatusPage(Page):
     status_changed = Signal(object)
-    server_output = Signal(str)
 
     def __init__(self):
         super().__init__("Palworld Server", "Monitor and manage the local server")
@@ -39,8 +39,8 @@ class ServerStatusPage(Page):
         self.log.setReadOnly(True)
         self.log.setPlaceholderText("Server activity will appear here.")
         self.content_layout.addWidget(self.log)
-        self.server_output.connect(self.append_console_output)
         self._last_logged_status = None
+        self._status_updated_at = None
         self._current_status = None
         self._process_poll_timer = QTimer(self)
         self._process_poll_timer.setInterval(250)
@@ -54,22 +54,23 @@ class ServerStatusPage(Page):
         self.update_status(ServerStatus(state), log_status=log_status)
 
     def update_status(self, status, log_status=True):
-        self.status_label.setText(f"Server status: {status.display}")
+        status_changed = status.display != self._last_logged_status
+        if status_changed or self._status_updated_at is None:
+            self._status_updated_at = datetime.now()
+        timestamp = self._status_updated_at.strftime("%Y-%m-%d %H:%M:%S")
+        self.status_label.setText(f"Server status: {status.display} ({timestamp})")
         self.status_label.setStyleSheet(status_stylesheet(status))
         self.start_button.setEnabled(status.state is ServerState.STOPPED)
         self.stop_button.setEnabled(status.state is ServerState.RUNNING)
-        if log_status and status.display != self._last_logged_status:
-            self.log.appendPlainText(status.display)
+        if log_status and status_changed:
+            self.log.appendPlainText(f"[{timestamp}] {status.display}")
         self._last_logged_status = status.display
         self._current_status = status
         self.status_changed.emit(status)
 
-    def append_console_output(self, line):
-        self.log.appendPlainText(line)
-
     def start_server(self):
         try:
-            if config_manager.start_server(output_callback=self.server_output.emit):
+            if config_manager.start_server():
                 self.update_status(ServerStatus(ServerState.STARTING))
                 self.log.appendPlainText("Server start requested")
                 self._process_poll_timer.start()

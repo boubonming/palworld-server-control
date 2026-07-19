@@ -78,7 +78,7 @@ For a community server, start PalServer with `-publiclobby`. Set `ServerName`, `
 
 The application-owned monitor checks player count once per minute while the server is running. If no players are detected for the configured duration, it saves the world and requests a graceful shutdown through the REST API. This works even when the Discord bot is disabled. If Discord is running, it additionally broadcasts the shutdown notice to configured control channels.
 
-The duration defaults to 5 minutes to preserve the existing behavior and can be changed in **App Settings → Auto-stop after empty**. Values from 1 to 1,440 minutes are accepted.
+Idle shutdown is enabled by default and can be toggled in **App Settings → Idle shutdown**. Its duration defaults to 5 minutes, and values from 1 to 1,440 minutes are accepted.
 
 ## Discord integration
 
@@ -86,7 +86,9 @@ Configure the Discord bot token and one or more control channel IDs in the Disco
 
 Available commands:
 
-- `!start` — starts the configured Palworld server
+- `!start` — starts the server using the saved idle-shutdown setting
+- `!start <minutes>` — starts the server with idle shutdown enabled at that duration for this session only
+- `!start off` — starts the server without idle shutdown for this session only
 - `!stop` — saves and requests a graceful shutdown
 - `!settings` — displays selected server settings
 
@@ -98,6 +100,12 @@ For a Windows executable, package `src/main.py` with PyInstaller and include the
 
 ```powershell
 pyinstaller --onefile --noconsole --add-data "metadata.json;." --add-data "assets;assets" --name PalworldServerControl src/main.py
+```
+
+or
+
+```powershell
+pyinstaller --clean PalworldServerControl.spec
 ```
 
 Keep the generated `config.json` beside the executable. Test the packaged build on the host machine before enabling Windows startup.
