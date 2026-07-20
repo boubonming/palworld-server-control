@@ -37,6 +37,7 @@ class ServerStatusPage(Page):
 
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
+        self.log.setMaximumBlockCount(1000)
         self.log.setPlaceholderText("Server activity will appear here.")
         self.content_layout.addWidget(self.log)
         self._last_logged_status = None

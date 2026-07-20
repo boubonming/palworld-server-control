@@ -12,11 +12,14 @@ def channel_context(channel, author=None):
 
 
 def command_activity(channel, author, command, result):
-    return f"#{channel_context(channel, author)} · {command} · {result}"
+    context = f"#{channel_context(channel, author)}"
+    if result == "Received":
+        return f"{context} · issued {command}"
+    return f"{context} · Result: {result}"
 
 
 def bot_reply_activity(channel, reply):
-    return f"#{channel_context(channel)} / Palworld Bot · Reply: {reply}"
+    return f"#{channel_context(channel)} / Palworld Bot · Replied: {reply}"
 
 
 def configured_channel_ids(values):

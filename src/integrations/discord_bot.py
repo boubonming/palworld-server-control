@@ -242,11 +242,20 @@ class DiscordBotManager:
                 channel = await bot_instance.fetch_channel(channel_id)
             except Exception as exc:
                 print(f"Automated shutdown notification channel unavailable ({channel_id}): {exc}")
+                signals.discord_activity.emit(
+                    f"Automated idle shutdown notification failed: channel {channel_id} unavailable"
+                )
                 return
         try:
             await channel.send(message)
+            signals.discord_activity.emit(
+                f"Automated idle shutdown notification sent to channel {channel_id}"
+            )
         except Exception as exc:
             print(f"Automated shutdown notification failed for channel {channel_id}: {exc}")
+            signals.discord_activity.emit(
+                f"Automated idle shutdown notification failed for channel {channel_id}: {exc}"
+            )
         await bot_instance.change_presence(status=discord.Status.idle, activity=None)
 
     async def _update_server_presence(self, status, bot_instance):

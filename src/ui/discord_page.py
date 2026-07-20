@@ -105,6 +105,7 @@ class DiscordPage(Page):
         activity_layout = QVBoxLayout(activity_section)
         self.activity_log = QPlainTextEdit()
         self.activity_log.setReadOnly(True)
+        self.activity_log.setMaximumBlockCount(1000)
         self.activity_log.setPlaceholderText("Discord commands and results will appear here.")
         self.activity_log.setMinimumHeight(220)
         activity_layout.addWidget(self.activity_log)
