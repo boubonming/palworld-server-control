@@ -5,6 +5,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
+    QHBoxLayout,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
@@ -116,6 +117,15 @@ class MultiSelectField(QWidget):
         search.setPlaceholderText("Search by name or ID...")
         layout.addWidget(search)
 
+        custom_row = QHBoxLayout()
+        custom_value = QLineEdit()
+        custom_value.setPlaceholderText("Add a value not listed...")
+        custom_row.addWidget(custom_value)
+        add_custom_button = QPushButton("Add value")
+        add_custom_button.setObjectName("secondaryAction")
+        custom_row.addWidget(add_custom_button)
+        layout.addLayout(custom_row)
+
         choices = CheckableListWidget()
         choices.setAlternatingRowColors(True)
         for label, value in self._options:
@@ -133,6 +143,29 @@ class MultiSelectField(QWidget):
                 item.setHidden(query not in item.text().lower())
 
         search.textChanged.connect(filter_choices)
+
+        def add_custom_value():
+            value = custom_value.text().strip()
+            if not value:
+                return
+            for index in range(choices.count()):
+                item = choices.item(index)
+                if item.data(Qt.UserRole) == value:
+                    item.setCheckState(Qt.Checked)
+                    item.setHidden(False)
+                    break
+            else:
+                item = QListWidgetItem(value)
+                item.setData(Qt.UserRole, value)
+                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+                item.setCheckState(Qt.Checked)
+                choices.addItem(item)
+            search.clear()
+            custom_value.clear()
+
+        add_custom_button.clicked.connect(add_custom_value)
+        custom_value.returnPressed.connect(add_custom_value)
+
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         clear_button = buttons.addButton("Clear all", QDialogButtonBox.ResetRole)
         clear_button.setObjectName("secondaryAction")
@@ -153,5 +186,9 @@ class MultiSelectField(QWidget):
             for index in range(choices.count())
             if choices.item(index).checkState() == Qt.Checked
         ]
+        known_values = {value for _label, value in self._options}
+        self._options.extend(
+            (value, value) for value in self._selected if value not in known_values
+        )
         self._update_button()
         self.textChanged.emit(self.text())

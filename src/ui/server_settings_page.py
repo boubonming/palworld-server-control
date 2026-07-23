@@ -25,6 +25,13 @@ from PySide6.QtWidgets import (
 )
 
 from core import config_manager
+from core.setting_categories import (
+    CATEGORY_ICONS,
+    CATEGORY_ORDER,
+    CATEGORY_SETTING_PRIORITY,
+    SETTING_CATEGORIES,
+    SettingCategory,
+)
 from core.setting_metadata import (
     get_setting_numeric_bounds,
     get_setting_numeric_hint,
@@ -116,35 +123,6 @@ class ServerSettingsPage(Page):
         self.content_layout.addLayout(buttons)
         self.reload_settings()
 
-    CATEGORY_KEYS = {
-        "General & World": {"Difficulty", "RandomizerType", "RandomizerSeed", "bIsRandomizerPalLevelRandom", "DayTimeSpeedRate", "NightTimeSpeedRate", "AutoSaveSpan", "bIsMultiplay", "bIsPvP", "bHardcore", "bPalLost", "bCharacterRecreateInHardcore", "bEnableFastTravel", "bEnableFastTravelOnlyBaseCamp", "bIsStartLocationSelectByMap", "bExistPlayerAfterLogout", "ServerPlayerMaxNum"},
-        "Experience & Pal Capture": {"ExpRate", "PalCaptureRate", "PalSpawnNumRate", "PalEggDefaultHatchingTime", "WorkSpeedRate", "MonsterFarmActionSpeedRate"},
-        "Player & Pal Survival": {"PlayerStomachDecreaceRate", "PlayerStaminaDecreaceRate", "PlayerAutoHPRegeneRate", "PlayerAutoHpRegeneRateInSleep", "PalStomachDecreaceRate", "PalStaminaDecreaceRate", "PalAutoHPRegeneRate", "PalAutoHPRegeneRateInSleep", "ItemWeightRate", "EquipmentDurabilityDamageRate", "ItemCorruptionMultiplier"},
-        "Combat & Damage": {"PalDamageRateAttack", "PalDamageRateDefense", "PlayerDamageRateAttack", "PlayerDamageRateDefense", "bEnableInvaderEnemy", "bActiveUNKO", "bEnableAimAssistPad", "bEnableAimAssistKeyboard", "bEnableDefenseOtherGuildPlayer", "bEnableVoiceChat"},
-        "Building, Gathering & Drops": {"BuildObjectHpRate", "BuildObjectDamageRate", "BuildObjectDeteriorationDamageRate", "CollectionDropRate", "CollectionObjectHpRate", "CollectionObjectRespawnSpeedRate", "EnemyDropItemRate", "DropItemMaxNum", "PhysicsActiveDropItemMaxNum", "DropItemMaxNum_UNKO", "DropItemAliveMaxHours", "SupplyDropSpan", "MaxBuildingLimitNum", "DenyTechnologyList"},
-        "Bases, Guilds & Multiplayer": {"BaseCampMaxNum", "BaseCampWorkerMaxNum", "GuildPlayerMaxNum", "BaseCampMaxNumInGuild", "CoopPlayerMaxNum", "bAutoResetGuildNoOnlinePlayers", "AutoResetGuildTimeNoOnlinePlayers", "bCanPickupOtherGuildDeathPenaltyDrop", "GuildRejoinCooldownMinutes", "MaxGuildsPerFrame"},
-        "Server Identity & Access": {"ServerName", "ServerDescription", "ServerPassword", "AdminPassword", "Region", "bUseAuth", "bAllowClientMod", "bShowPlayerList", "ChatPostLimitPerMinute", "BanListURL"},
-        "Network, API & RCON": {"PublicPort", "PublicIP", "RCONEnabled", "RCONPort", "RESTAPIEnabled", "RESTAPIPort", "CrossplayPlatforms", "AllowConnectPlatform"},
-        "Performance, Replication & System": {"bEnableNonLoginPenalty", "bInvisibleOtherGuildBaseCampAreaFX", "bBuildAreaLimit", "bIsUseBackupSaveData", "LogFormatType", "bIsShowJoinLeftMessage", "ServerReplicatePawnCullDistance", "ItemContainerForceMarkDirtyInterval", "PlayerDataPalStorageUpdateCheckTickInterval", "AutoTransferMasterCheckIntervalSeconds", "AutoTransferMasterThresholdDays", "BlockRespawnTime", "RespawnPenaltyDurationThreshold", "RespawnPenaltyTimeScale", "BuildingNameDisplayCacheTTLSeconds"},
-        "PvP & Death Penalties": {"DeathPenalty", "bEnablePlayerToPlayerDamage", "bEnableFriendlyFire", "bEnableNonLoginPenalty", "AdditionalDropItemWhenPlayerKillingInPvPMode", "AdditionalDropItemNumWhenPlayerKillingInPvPMode", "bAdditionalDropItemWhenPlayerKillingInPvPMode", "bDisplayPvPItemNumOnWorldMap_BaseCamp", "bDisplayPvPItemNumOnWorldMap_Player"},
-        "Voice Chat & Accessibility": {"VoiceChatMaxVolumeDistance", "VoiceChatZeroVolumeDistance", "bAllowEnhanceStat_Health", "bAllowEnhanceStat_Attack", "bAllowEnhanceStat_Stamina", "bAllowEnhanceStat_Weight", "bAllowEnhanceStat_WorkSpeed", "bEnableBuildingPlayerUIdDisplay", "bEnableAimAssistPad", "bEnableAimAssistKeyboard"},
-    }
-
-    CATEGORY_ICONS = {
-        "General & World": "🌍",
-        "Experience & Pal Capture": "✨",
-        "Player & Pal Survival": "🧍",
-        "Combat & Damage": "⚔️",
-        "Building, Gathering & Drops": "🏗️",
-        "Bases, Guilds & Multiplayer": "🏠",
-        "Server Identity & Access": "🔐",
-        "Network, API & RCON": "🌐",
-        "Performance, Replication & System": "⚙️",
-        "PvP & Death Penalties": "☠️",
-        "Voice Chat & Accessibility": "🔊",
-        "Advanced / New Settings": "🧩",
-    }
-
     SETTING_CHOICES = {
         "DeathPenalty": [
             ("No drops", "None"),
@@ -167,6 +145,12 @@ class ServerSettingsPage(Page):
         ),
     }
 
+    DISPLAY_NAME_REPLACEMENTS = {
+        "Hp": "HP",
+        "Pv P": "PvP",
+        "U Id": "UID",
+    }
+
     def reload_settings(self):
         settings = config_manager.get_palworld_editor_settings()
         if self._search_mode:
@@ -182,10 +166,12 @@ class ServerSettingsPage(Page):
         self.category_forms.clear()
         self.category_list.clear()
         self.category_categories.clear()
-        categories = {name: [] for name in self.CATEGORY_KEYS}
-        categories["Advanced / New Settings"] = []
+        categories = {category: [] for category in CATEGORY_ORDER}
         for key in settings:
-            category = next((name for name, keys in self.CATEGORY_KEYS.items() if key in keys), "Advanced / New Settings")
+            category = SETTING_CATEGORIES.get(
+                key,
+                SettingCategory.ADVANCED_NEW_SETTINGS,
+            )
             categories[category].append(key)
         for category, keys in categories.items():
             if not keys:
@@ -195,7 +181,17 @@ class ServerSettingsPage(Page):
             panel = QWidget()
             form = QFormLayout(panel)
             self.category_forms[category] = form
-            for key in sorted(keys):
+            priority = {
+                key: index
+                for index, key in enumerate(CATEGORY_SETTING_PRIORITY.get(category, ()))
+            }
+            for key in sorted(
+                keys,
+                key=lambda setting_key: (
+                    priority.get(setting_key, len(priority)),
+                    self.display_name(setting_key).casefold(),
+                ),
+            ):
                 field = self.create_setting_field(settings[key], key)
                 label = QLabel(self.display_name(key))
                 tooltip = get_setting_tooltip(key)
@@ -208,11 +204,11 @@ class ServerSettingsPage(Page):
                 if isinstance(field, QCheckBox):
                     field.stateChanged.connect(self.mark_dirty)
                 elif isinstance(field, QComboBox):
-                    field.currentIndexChanged.connect(self.mark_dirty)
+                    field.currentTextChanged.connect(self.mark_dirty)
                 else:
                     field.textChanged.connect(self.mark_dirty)
             scroll.setWidget(panel)
-            self.settings_tabs.addTab(scroll, category)
+            self.settings_tabs.addTab(scroll, category.value)
         self._build_category_navigation(categories)
         self._saved_values = self.current_values()
         self.update_save_button()
@@ -221,8 +217,7 @@ class ServerSettingsPage(Page):
 
     def _build_category_navigation(self, categories):
         for category in (name for name, keys in categories.items() if keys):
-            display_category = category
-            item = QListWidgetItem(f"{self.CATEGORY_ICONS.get(category, '🧩')}  {display_category}")
+            item = QListWidgetItem(f"{CATEGORY_ICONS[category]}  {category.value}")
             self.category_list.addItem(item)
             self.category_categories.append(category)
         if self.category_categories:
@@ -235,7 +230,7 @@ class ServerSettingsPage(Page):
 
     def _select_category(self, category):
         for index in range(self.settings_tabs.count()):
-            if self.settings_tabs.tabText(index) == category:
+            if self.settings_tabs.tabText(index) == category.value:
                 self.settings_tabs.setCurrentIndex(index)
                 break
 
@@ -310,9 +305,11 @@ class ServerSettingsPage(Page):
             return field
         if key in ServerSettingsPage.SETTING_CHOICES:
             field = QComboBox()
+            field.setEditable(True)
+            field.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
             choices = list(ServerSettingsPage.SETTING_CHOICES[key])
             if value not in {choice_value for _label, choice_value in choices}:
-                choices.append((f"Current value: {value}", value))
+                choices.append((value, value))
             for label, choice_value in choices:
                 field.addItem(label, choice_value)
             field.setCurrentIndex(field.findData(value))
@@ -345,7 +342,10 @@ class ServerSettingsPage(Page):
         if isinstance(field, QCheckBox):
             return "True" if field.isChecked() else "False"
         if isinstance(field, QComboBox):
-            return field.currentData()
+            index = field.currentIndex()
+            if index >= 0 and field.currentText() == field.itemText(index):
+                return field.itemData(index)
+            return field.currentText()
         return field.text()
 
     def current_values(self):
@@ -367,7 +367,10 @@ class ServerSettingsPage(Page):
             key = key[1:]
         key = key.replace("_", " ")
         key = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1 \2", key)
-        return re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", key)
+        key = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", key)
+        for source, replacement in ServerSettingsPage.DISPLAY_NAME_REPLACEMENTS.items():
+            key = key.replace(source, replacement)
+        return key
 
     def save(self):
         if config_manager.is_server_process_running():
