@@ -57,6 +57,42 @@ class ServerControl(commands.Cog):
             return False
         return True
 
+    @commands.command(name="help")
+    async def show_help(self, ctx):
+        if not self.command_allowed(ctx):
+            return
+
+        embed = discord.Embed(
+            title="Palworld Server Commands",
+            description="Available server-control commands",
+            color=discord.Color.blue(),
+        )
+        embed.add_field(
+            name="!start [minutes|off]",
+            value=(
+                "Start the server using the saved idle-shutdown setting, "
+                "a session-specific duration, or no idle shutdown."
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="!stop",
+            value="Save the world and gracefully shut down the server.",
+            inline=False,
+        )
+        embed.add_field(
+            name="!settings",
+            value="Show live settings when online or saved settings when offline.",
+            inline=False,
+        )
+        embed.add_field(
+            name="!help",
+            value="Show this command list.",
+            inline=False,
+        )
+        await ctx.send(embed=embed)
+        self.record_activity(ctx, "Command help sent")
+
     @commands.command(name="start")
     async def start_server(self, ctx, idle_shutdown=None):
         if not self.command_allowed(ctx):
@@ -157,19 +193,22 @@ class ServerControl(commands.Cog):
     async def server_settings(self, ctx):
         if not self.command_allowed(ctx):
             return
-        if not await asyncio.to_thread(config_manager.is_server_process_running):
-            await ctx.send("Cannot fetch settings: the server is offline.")
-            self.record_activity(ctx, "Settings unavailable: server is stopped")
-            return
 
         try:
-            data = await asyncio.to_thread(api_client.call_palworld_api, "settings", method="GET")
+            data = await asyncio.to_thread(config_manager.get_palworld_ini_settings)
+
             if not data:
-                self.record_activity(ctx, "Failed: no server settings returned")
+                await ctx.send(
+                    "Cannot read server settings. Check that the Palworld server "
+                    "directory and PalWorldSettings.ini are configured."
+                )
+                self.record_activity(ctx, "Failed: no server settings available")
                 return
             embed = discord.Embed(title="Palworld Server Configuration", color=discord.Color.blue())
-            embed.add_field(name="Difficulty", value=data.get("Difficulty", "Default"), inline=True)
-            embed.add_field(name="Max Players", value=data.get("ServerPlayerMaxNum", "32"), inline=True)
+            embed.add_field(name="Server Name", value=data.get("ServerName"), inline=False)
+            embed.add_field(name="Difficulty", value=data.get("Difficulty"), inline=True)
+            embed.add_field(name="Max Players", value=data.get("ServerPlayerMaxNum"), inline=True)
+            embed.add_field(name="Is PVP", value=data.get("bIsPvP", False), inline=True)
             embed.add_field(
                 name="Multipliers",
                 value=(
@@ -179,7 +218,7 @@ class ServerControl(commands.Cog):
                 inline=False,
             )
             await ctx.send(embed=embed)
-            self.record_activity(ctx, "Server settings sent")
+            self.record_activity(ctx, f"Server settings sent: {data.get('ServerName')}")
         except Exception as exc:
             await ctx.send(f"Error displaying settings: {exc}")
             self.record_activity(ctx, f"Failed to fetch settings: {exc}")

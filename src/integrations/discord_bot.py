@@ -30,7 +30,7 @@ def create_bot():
                     f"Discord commands failed to load: {exc}"
                 )
 
-    bot_instance = ManagedBot(command_prefix="!", intents=intents)
+    bot_instance = ManagedBot(command_prefix="!", intents=intents, help_command=None)
 
     @bot_instance.event
     async def on_ready():

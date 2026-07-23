@@ -90,7 +90,8 @@ Available commands:
 - `!start <minutes>` — starts the server with idle shutdown enabled at that duration for this session only
 - `!start off` — starts the server without idle shutdown for this session only
 - `!stop` — saves and requests a graceful shutdown
-- `!settings` — displays selected server settings
+- `!settings` — displays server settings
+- `!help` — displays the available Discord commands
 
 The Discord bot can be started manually from the UI or automatically with the application.
 
