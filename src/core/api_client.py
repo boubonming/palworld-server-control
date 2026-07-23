@@ -32,3 +32,7 @@ def call_palworld_api(endpoint, method="POST", payload=None):
         if method == "GET" and status_code == 200:
             return json.loads(response.read().decode("utf-8"))
         return status_code
+
+
+def announce_message(message):
+    return call_palworld_api("announce", payload={"message": message})

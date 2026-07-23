@@ -28,7 +28,13 @@ from PySide6.QtWidgets import QStyle
 from core import config_manager
 from core.auto_shutdown_monitor import AutoShutdownMonitor
 from integrations import discord_bot
-from ui.pages import AppSettingsPage, DiscordPage, ServerSettingsPage, ServerStatusPage
+from ui.pages import (
+    AnnouncementsPage,
+    AppSettingsPage,
+    DiscordPage,
+    ServerSettingsPage,
+    ServerStatusPage,
+)
 from shared.status import ServerState, ServerStatus
 
 
@@ -122,20 +128,32 @@ class MainWindow(QMainWindow):
 
         self.navigation = QListWidget()
         self.navigation.setFixedWidth(180)
-        self.navigation.addItems(["Server Status", "Server Settings", "Discord", "App Settings"])
+        self.navigation.addItems(
+            ["Server Status", "Announcements", "Server Settings", "Discord", "App Settings"]
+        )
 
         self.pages = QStackedWidget()
         self.server_status = ServerStatusPage()
+        self.announcements = AnnouncementsPage()
         self.server_settings = ServerSettingsPage()
         self.discord = DiscordPage()
         self.app_settings = AppSettingsPage()
         self.auto_shutdown_monitor = AutoShutdownMonitor(parent=self)
         self.auto_shutdown_monitor.status_changed.connect(self.server_status.update_status)
+        self.auto_shutdown_monitor.status_changed.connect(
+            self.announcements.handle_server_status
+        )
         self.auto_shutdown_monitor.status_changed.connect(self.server_settings.handle_server_status)
         self.auto_shutdown_monitor.idle_shutdown.connect(discord_bot.notify_idle_shutdown)
         self.server_status.status_changed.connect(discord_bot.update_server_presence)
         self.auto_shutdown_monitor.start()
-        for page in (self.server_status, self.server_settings, self.discord, self.app_settings):
+        for page in (
+            self.server_status,
+            self.announcements,
+            self.server_settings,
+            self.discord,
+            self.app_settings,
+        ):
             self.pages.addWidget(page)
         self.navigation.currentRowChanged.connect(self.pages.setCurrentIndex)
         self.server_settings.saved.connect(self.server_status.refresh)
@@ -148,6 +166,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(shell)
         self.navigation.setCurrentRow(0)
         discord_bot.signals.status_changed.connect(self.server_status.update_status)
+        discord_bot.signals.status_changed.connect(self.announcements.handle_server_status)
         discord_bot.signals.status_changed.connect(self.server_settings.handle_server_status)
 
         self.setStyleSheet("""
@@ -219,6 +238,7 @@ class MainWindow(QMainWindow):
         running = config_manager.is_server_process_running()
         status = ServerStatus(ServerState.RUNNING if running else ServerState.STOPPED)
         self.server_status.update_status(status, log_status=False)
+        self.announcements.handle_server_status(status)
         self.server_settings.handle_server_status(status)
 
     def exit_application(self):
