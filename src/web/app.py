@@ -45,7 +45,7 @@ def create_web_app(runtime):
 
     @app.before_request
     def require_authentication():
-        if request.endpoint in {"login", "static"}:
+        if request.endpoint in {"health", "login", "static"}:
             return None
         if not session.get("authenticated"):
             return redirect(url_for("login", next=request.path))
@@ -55,6 +55,10 @@ def create_web_app(runtime):
             if not expected or not hmac.compare_digest(supplied, expected):
                 abort(400, "Invalid form token.")
         return None
+
+    @app.get("/health")
+    def health():
+        return jsonify(status="ok")
 
     @app.route("/login", methods=["GET", "POST"])
     def login():

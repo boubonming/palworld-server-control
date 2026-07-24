@@ -16,14 +16,14 @@ class DockerProxyClient:
         if not self.base_url:
             raise DockerProxyError("Docker Socket Proxy URL is not configured.")
 
-    def _request(self, path, method="GET"):
+    def _request(self, path, method="GET", timeout=15):
         request = urllib.request.Request(
             f"{self.base_url}/{path.lstrip('/')}",
             headers={"Accept": "application/json"},
             method=method,
         )
         try:
-            with urllib.request.urlopen(request, timeout=15) as response:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
                 contents = response.read()
                 if not contents:
                     return None
@@ -60,4 +60,8 @@ class DockerProxyClient:
 
     def stop_container(self, container_id, timeout=60):
         encoded = urllib.parse.quote(str(container_id), safe="")
-        self._request(f"containers/{encoded}/stop?t={int(timeout)}", method="POST")
+        self._request(
+            f"containers/{encoded}/stop?t={int(timeout)}",
+            method="POST",
+            timeout=int(timeout) + 15,
+        )

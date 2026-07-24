@@ -1,6 +1,6 @@
 import os
 
-from core.docker_proxy_client import DockerProxyClient
+from core.docker_proxy_client import DockerProxyClient, DockerProxyError
 
 
 class SocketProxyBackend:
@@ -61,5 +61,10 @@ class SocketProxyBackend:
         container = self._container()
         if not container or container.get("State") != "running":
             return False
-        self.client().stop_container(container["Id"], timeout=60)
+        try:
+            self.client().stop_container(container["Id"], timeout=60)
+        except DockerProxyError:
+            container = self._container()
+            if container and container.get("State") == "running":
+                raise
         return True
