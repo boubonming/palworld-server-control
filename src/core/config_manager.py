@@ -4,6 +4,7 @@ import re
 import shutil
 import sys
 import threading
+import time
 
 from core import docker_deployment
 from core.palworld_ini import extract_option_settings, parse_option_settings
@@ -553,17 +554,28 @@ def stop_server():
 
     from core import api_client
 
+    shutdown_wait_seconds = 5
     save_status = api_client.call_palworld_api("save")
     if is_container_backend() and save_status not in (200, 202):
         raise RuntimeError(f"Server save request returned HTTP {save_status}.")
 
-    if is_container_backend():
-        return get_server_backend().stop()
-
     status = api_client.call_palworld_api(
         "shutdown",
-        payload={"waittime": 5, "message": "Server shutting down"},
+        payload={
+            "waittime": shutdown_wait_seconds,
+            "message": "Server shutting down",
+        },
     )
     if status not in (200, 202):
         raise RuntimeError(f"Server shutdown request returned HTTP {status}.")
+
+    if is_container_backend():
+        # Let Palworld display and complete its shutdown countdown before
+        # intentionally stopping the container so `unless-stopped` stays stopped.
+        time.sleep(shutdown_wait_seconds + 1)
+        backend = get_server_backend()
+        if backend.is_running():
+            return backend.stop()
+        return True
+
     return True
