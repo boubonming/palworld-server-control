@@ -1,6 +1,6 @@
 services:
   controller:
-    image: ghcr.io/boubonming/palworld-server-control:latest
+    image: ghcr.io/boubonming/palworld-server-control:${CONTROLLER_IMAGE_TAG:-latest}
     container_name: palworld-server-control
     restart: unless-stopped
     depends_on:

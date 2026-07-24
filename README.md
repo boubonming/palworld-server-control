@@ -47,10 +47,11 @@ Prerequisites:
 - `DISABLE_GENERATE_SETTINGS=true` on the Palworld container
 - The host directory containing `PalWorldSettings.ini`
 
-The GitHub Actions workflow in `.github/workflows/controller-image.yml` publishes `ghcr.io/boubonming/palworld-server-control:latest` after changes reach `main`. Make that GHCR package public, or add its credentials to Portainer's registry configuration. Create the external `palworld-control` network and attach the Palworld service to it. Then deploy [`deploy/controller-stack.yaml`](deploy/controller-stack.yaml) through Portainer or Docker Compose with these stack variables:
+The GitHub Actions workflow in `.github/workflows/controller-image.yml` publishes `ghcr.io/boubonming/palworld-server-control:linux-docker` from the test branch and `:latest` after changes reach `main`. Make that GHCR package public, or add its credentials to Portainer's registry configuration. Create the external `palworld-control` network and attach the Palworld service to it. Then deploy [`deploy/controller-stack.yaml`](deploy/controller-stack.yaml) through Portainer or Docker Compose with these stack variables:
 
 - `PALWORLD_CONTROL_WEB_PASSWORD`: web password of at least ten characters
 - `PALWORLD_CONFIG_DIR`: host path ending in `Pal/Saved/Config/LinuxServer`
+- `CONTROLLER_IMAGE_TAG`: use `linux-docker` for branch testing; omit it for production `latest`
 
 The stack automatically pulls and creates `lscr.io/linuxserver/socket-proxy`. Its port is not published, its filesystem is read-only, and its network is internal to the controller. General Docker POST access remains disabled; only container start and stop exceptions are enabled.
 

@@ -2,7 +2,7 @@ name: Controller container image
 
 on:
   push:
-    branches: [main]
+    branches: [main, linux-docker]
     tags: ["v*"]
   workflow_dispatch:
 
@@ -21,12 +21,19 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v5
+        id: metadata
+        with:
+          images: ghcr.io/boubonming/palworld-server-control
+          tags: |
+            type=ref,event=branch
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha
       - uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.controller
           platforms: linux/amd64
           push: true
-          tags: |
-            ghcr.io/boubonming/palworld-server-control:latest
-            ghcr.io/boubonming/palworld-server-control:${{ github.sha }}
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
