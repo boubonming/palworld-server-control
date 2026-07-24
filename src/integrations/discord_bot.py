@@ -2,17 +2,20 @@ import asyncio
 import threading
 import discord
 from discord.ext import commands
-from PySide6.QtCore import QObject, Signal
 from core import config_manager
 from shared.discord_activity import channel_context, command_activity, normalize_channel_id
+from shared.events import EventSignal
 from shared.status import ServerState, ServerStatus
 
-# Thread bridge 
-class BotSignals(QObject):
-    status_changed = Signal(object)
-    bot_status_changed = Signal(str)
-    discord_activity = Signal(str)
-    discord_channel_info = Signal(str, str)
+
+class BotSignals:
+    """Toolkit-neutral Discord events for desktop and headless consumers."""
+
+    def __init__(self):
+        self.status_changed = EventSignal()
+        self.bot_status_changed = EventSignal()
+        self.discord_activity = EventSignal()
+        self.discord_channel_info = EventSignal()
 
 signals = BotSignals()
 

@@ -2,20 +2,17 @@
 
 import threading
 
-from PySide6.QtCore import QObject, Signal
-
 from core import api_client, config_manager
+from shared.events import EventSignal
 from shared.status import ServerState, ServerStatus
 
 
-class AutoShutdownMonitor(QObject):
+class AutoShutdownMonitor:
     """Polls Palworld independently of Discord and shuts down idle servers."""
 
-    status_changed = Signal(object)
-    idle_shutdown = Signal(int, object)
-
-    def __init__(self, interval_seconds=60, parent=None):
-        super().__init__(parent)
+    def __init__(self, interval_seconds=60):
+        self.status_changed = EventSignal()
+        self.idle_shutdown = EventSignal()
         self.interval_seconds = interval_seconds
         self.empty_minutes_counter = 0
         self._server_was_running = False

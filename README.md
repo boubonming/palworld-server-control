@@ -13,12 +13,18 @@ Palworld Server Control is a lightweight manager for a Palworld dedicated server
 - Windows for the native desktop workflow, or Linux for Docker/web mode
 - Python 3.10+
 - A Palworld dedicated server installation
-- Python packages listed in `requirements.txt`
+- Python packages listed in `requirements.txt` for Windows desktop mode
 
 Install dependencies with:
 
 ```powershell
 pip install -r requirements.txt
+```
+
+Linux controller dependencies are kept separate and do not include PySide6:
+
+```bash
+pip install -r requirements-controller.txt
 ```
 
 ## Running from source
@@ -76,8 +82,9 @@ src/
   app.py                  Main window and lifecycle orchestration
   core/                   Configuration, API, INI, and Palworld domain logic
   integrations/           Discord bot lifecycle and commands
-  ui/                     PySide6 pages and reusable widgets
-  shared/                 Small cross-cutting helpers
+  ui/                     PySide6 pages, widgets, and desktop event bridges
+  web/                    Linux controller web interface and runtime
+  shared/                 Toolkit-neutral events and cross-cutting helpers
 ```
 
 ## Network & Port Forwarding Setup

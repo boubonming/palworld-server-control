@@ -8,7 +8,6 @@ import signal
 import sys
 import threading
 
-from PySide6.QtCore import QCoreApplication
 from waitress import serve
 from werkzeug.security import generate_password_hash
 
@@ -55,7 +54,6 @@ def main():
     config = config_manager.load_config()
     _ensure_web_credentials(config, args.web_password)
 
-    qt_app = QCoreApplication(sys.argv)
     runtime = HeadlessRuntime()
     web_app = create_web_app(runtime)
     runtime.start()
@@ -74,11 +72,14 @@ def main():
     server_thread.start()
     runtime.record(f"Web interface listening on {args.host}:{args.port}")
 
-    signal.signal(signal.SIGINT, lambda *_args: qt_app.quit())
-    signal.signal(signal.SIGTERM, lambda *_args: qt_app.quit())
-    exit_code = qt_app.exec()
-    runtime.stop()
-    return exit_code
+    stop_event = threading.Event()
+    signal.signal(signal.SIGINT, lambda *_args: stop_event.set())
+    signal.signal(signal.SIGTERM, lambda *_args: stop_event.set())
+    try:
+        stop_event.wait()
+    finally:
+        runtime.stop()
+    return 0
 
 
 if __name__ == "__main__":

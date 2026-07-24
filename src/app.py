@@ -26,8 +26,8 @@ from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QStyle
 
 from core import config_manager
-from core.auto_shutdown_monitor import AutoShutdownMonitor
 from integrations import discord_bot
+from ui.qt_bridges import QtAutoShutdownMonitor, discord_signals
 from ui.pages import (
     AnnouncementsPage,
     AppSettingsPage,
@@ -138,7 +138,7 @@ class MainWindow(QMainWindow):
         self.server_settings = ServerSettingsPage()
         self.discord = DiscordPage()
         self.app_settings = AppSettingsPage()
-        self.auto_shutdown_monitor = AutoShutdownMonitor(parent=self)
+        self.auto_shutdown_monitor = QtAutoShutdownMonitor(parent=self)
         self.auto_shutdown_monitor.status_changed.connect(self.server_status.update_status)
         self.auto_shutdown_monitor.status_changed.connect(
             self.announcements.handle_server_status
@@ -157,7 +157,7 @@ class MainWindow(QMainWindow):
             self.pages.addWidget(page)
         self.navigation.currentRowChanged.connect(self.pages.setCurrentIndex)
         self.server_settings.saved.connect(self.server_status.refresh)
-        discord_bot.signals.bot_status_changed.connect(self._finish_exit)
+        discord_signals.bot_status_changed.connect(self._finish_exit)
 
         shell = QWidget()
         layout = QHBoxLayout(shell)
@@ -165,9 +165,9 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.pages, 1)
         self.setCentralWidget(shell)
         self.navigation.setCurrentRow(0)
-        discord_bot.signals.status_changed.connect(self.server_status.update_status)
-        discord_bot.signals.status_changed.connect(self.announcements.handle_server_status)
-        discord_bot.signals.status_changed.connect(self.server_settings.handle_server_status)
+        discord_signals.status_changed.connect(self.server_status.update_status)
+        discord_signals.status_changed.connect(self.announcements.handle_server_status)
+        discord_signals.status_changed.connect(self.server_settings.handle_server_status)
 
         self.setStyleSheet("""
             QMainWindow, QWidget { background: #1f2024; color: #eeeeee; }
