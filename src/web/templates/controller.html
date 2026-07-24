@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Controller settings · Palworld Server Control{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <h1>Controller settings</h1>
+    <p>Configure Discord, idle shutdown, and web access.</p>
+  </div>
+</div>
+<section class="card">
+  <form method="post">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <h2>Discord</h2>
+    <label for="discord_bot_token">Bot token</label>
+    <input id="discord_bot_token" name="discord_bot_token" type="password" value="{{ config.get('discord_bot_token', '') }}">
+    <label for="palworld_channel_ids">Control channel IDs</label>
+    <input id="palworld_channel_ids" name="palworld_channel_ids" value="{{ config.get('palworld_channel_ids', []) | join(', ') }}" placeholder="123456789, 987654321">
+    <label class="check"><input type="checkbox" name="discord_bot_auto_start" {% if config.get('discord_bot_auto_start', true) %}checked{% endif %}> Start Discord bot with controller</label>
+
+    <h2>Idle shutdown</h2>
+    <label class="check"><input type="checkbox" name="auto_shutdown_enabled" {% if config.get('auto_shutdown_enabled', true) %}checked{% endif %}> Enable idle shutdown</label>
+    <label for="auto_shutdown_empty_minutes">Empty minutes before shutdown</label>
+    <input id="auto_shutdown_empty_minutes" name="auto_shutdown_empty_minutes" type="number" min="1" max="1440" value="{{ config.get('auto_shutdown_empty_minutes', 5) }}">
+
+    <h2>Web access</h2>
+    <label for="new_web_password">New password</label>
+    <input id="new_web_password" name="new_web_password" type="password" minlength="10" placeholder="Leave blank to keep the current password">
+    <button type="submit">Save controller settings</button>
+  </form>
+</section>
+{% endblock %}

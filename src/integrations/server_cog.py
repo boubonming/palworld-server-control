@@ -1,11 +1,10 @@
 import asyncio
-import subprocess
 import urllib.error
 
 import discord
 from discord.ext import commands
 
-from core import api_client, config_manager
+from core import config_manager
 from integrations import discord_bot as bot_module
 from shared.discord_activity import bot_reply_activity, command_activity, configured_channel_ids
 from shared.status import ServerState, ServerStatus
@@ -121,23 +120,12 @@ class ServerControl(commands.Cog):
                     return
 
         if await asyncio.to_thread(config_manager.is_server_process_running):
-            await ctx.send("Server is already running on the host PC.")
+            await ctx.send("Server is already running.")
             self.record_activity(ctx, "Server already running")
             return
 
-        server_exe = self.config.get("palworld_exe_path")
-        server_dir = self.config.get("palworld_dir")
-        if not server_exe:
-            await ctx.send("Server executable path is not configured in the manager GUI settings.")
-            self.record_activity(ctx, "Failed: server executable is not configured")
-            return
-
         try:
-            subprocess.Popen(
-                config_manager.get_server_launch_command(),
-                cwd=server_dir if server_dir else None,
-                creationflags=subprocess.CREATE_NO_WINDOW,
-            )
+            await asyncio.to_thread(config_manager.start_server)
             config_manager.set_server_launch_source(
                 ("discord", ctx.channel.id), idle_shutdown_override
             )
@@ -158,7 +146,7 @@ class ServerControl(commands.Cog):
             await ctx.send(f"Game server started successfully.{idle_policy}")
             self.record_activity(ctx, f"Server started{idle_policy}")
         except Exception as exc:
-            await ctx.send(f"Failed to launch executable: {exc}")
+            await ctx.send(f"Failed to start server: {exc}")
             self.record_activity(ctx, f"Failed to start server: {exc}")
 
     @commands.command(name="stop")
@@ -173,13 +161,8 @@ class ServerControl(commands.Cog):
 
         try:
             await ctx.send("Saving world progress...")
-            await asyncio.to_thread(api_client.call_palworld_api, "save")
-            status = await asyncio.to_thread(
-                api_client.call_palworld_api,
-                "shutdown",
-                payload={"waittime": 5, "message": "Server shutting down"},
-            )
-            if status in (200, 202):
+            stopped = await asyncio.to_thread(config_manager.stop_server)
+            if stopped:
                 config_manager.clear_server_launch_source()
                 await self.bot.change_presence(status=discord.Status.idle, activity=None)
                 bot_module.signals.status_changed.emit(ServerStatus(ServerState.STOPPED))
@@ -188,6 +171,9 @@ class ServerControl(commands.Cog):
         except urllib.error.URLError:
             await ctx.send("Failed to reach the server API.")
             self.record_activity(ctx, "Failed: server API unavailable")
+        except Exception as exc:
+            await ctx.send(f"Failed to stop server safely: {exc}")
+            self.record_activity(ctx, f"Failed to stop server: {exc}")
 
     @commands.command(name="settings")
     async def server_settings(self, ctx):

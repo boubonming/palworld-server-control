@@ -1,0 +1,70 @@
+services:
+  controller:
+    image: ghcr.io/boubonming/palworld-server-control:latest
+    container_name: palworld-server-control
+    restart: unless-stopped
+    depends_on:
+      - socket-proxy
+    environment:
+      PALWORLD_CONTROL_DATA_DIR: /data
+      PALWORLD_CONTROL_WEB_PASSWORD: ${PALWORLD_CONTROL_WEB_PASSWORD}
+      QT_QPA_PLATFORM: offscreen
+    ports:
+      - "8080:8080"
+    volumes:
+      - controller-data:/data
+      - type: bind
+        source: ${PALWORLD_CONFIG_DIR}
+        target: /palworld-config
+    networks:
+      - socket-control
+      - palworld-control
+
+  socket-proxy:
+    image: lscr.io/linuxserver/socket-proxy:latest
+    container_name: palworld-control-socket-proxy
+    restart: unless-stopped
+    read_only: true
+    environment:
+      ALLOW_START: 1
+      ALLOW_STOP: 1
+      ALLOW_RESTARTS: 0
+      AUTH: 0
+      BUILD: 0
+      COMMIT: 0
+      CONFIGS: 0
+      CONTAINERS: 1
+      EVENTS: 0
+      EXEC: 0
+      IMAGES: 0
+      INFO: 0
+      NETWORKS: 0
+      NODES: 0
+      PING: 1
+      PLUGINS: 0
+      POST: 0
+      SECRETS: 0
+      SERVICES: 0
+      SESSION: 0
+      SWARM: 0
+      SYSTEM: 0
+      TASKS: 0
+      VERSION: 1
+      VOLUMES: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    tmpfs:
+      - /run
+    networks:
+      socket-control:
+        aliases:
+          - socket-proxy
+
+volumes:
+  controller-data:
+
+networks:
+  socket-control:
+    internal: true
+  palworld-control:
+    external: true

@@ -1,19 +1,15 @@
 import os
 import json
 import re
-import psutil
 import shutil
 import sys
-import subprocess
 import threading
 
+from core import docker_deployment
 from core.palworld_ini import extract_option_settings, parse_option_settings
+from core.server_backends import create_backend
 
 CONFIG = {}
-SERVER_BINARY_NAMES = (
-    "PalServer-Win64-Shipping-Cmd.exe",
-    "PalServer-Win64-Test-Cmd.exe",
-)
 DEFAULT_GUI_CLOSE_BEHAVIOR = "exit"
 VALID_GUI_CLOSE_BEHAVIORS = {"minimize", "exit"}
 DEFAULT_AUTO_START = False
@@ -21,6 +17,7 @@ DEFAULT_DISCORD_BOT_AUTO_START = True
 DEFAULT_SILENT_SERVER_LAUNCH = False
 DEFAULT_AUTO_SHUTDOWN_ENABLED = True
 DEFAULT_AUTO_SHUTDOWN_EMPTY_MINUTES = 5
+DEFAULT_SERVER_BACKEND = "windows_native"
 MIN_AUTO_SHUTDOWN_EMPTY_MINUTES = 1
 MAX_AUTO_SHUTDOWN_EMPTY_MINUTES = 1440
 _server_launch_source = None
@@ -36,7 +33,11 @@ STRING_SETTING_KEYS = {
 
 def get_config_path():
     """Keeps configuration beside the executable instead of the launch directory."""
-    if getattr(sys, "frozen", False):
+    data_dir = os.environ.get("PALWORLD_CONTROL_DATA_DIR", "").strip()
+    if data_dir:
+        base_dir = os.path.abspath(os.path.expanduser(data_dir))
+        os.makedirs(base_dir, exist_ok=True)
+    elif getattr(sys, "frozen", False):
         base_dir = os.path.dirname(os.path.abspath(sys.executable))
     else:
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -52,6 +53,15 @@ def load_config():
             "palworld_dir": "",
             "palworld_exe_path": "",
             "palworld_ini_path": "",
+            "server_backend": DEFAULT_SERVER_BACKEND,
+            "docker_compose_dir": "",
+            "docker_compose_file": "compose.yaml",
+            "docker_service_name": "palworld",
+            "docker_env_file": ".env",
+            "palworld_api_host": "127.0.0.1",
+            "docker_proxy_url": "http://socket-proxy:2375",
+            "docker_container_name": "palworld-server",
+            "socket_proxy_configured": False,
             "gui_close_behavior": DEFAULT_GUI_CLOSE_BEHAVIOR,
             "auto_start": DEFAULT_AUTO_START,
             "discord_bot_auto_start": DEFAULT_DISCORD_BOT_AUTO_START,
@@ -70,6 +80,15 @@ def load_config():
     CONFIG.setdefault("auto_shutdown_enabled", DEFAULT_AUTO_SHUTDOWN_ENABLED)
     CONFIG.setdefault("auto_shutdown_empty_minutes", DEFAULT_AUTO_SHUTDOWN_EMPTY_MINUTES)
     CONFIG.setdefault("palworld_channel_ids", [])
+    CONFIG.setdefault("server_backend", DEFAULT_SERVER_BACKEND)
+    CONFIG.setdefault("docker_compose_dir", "")
+    CONFIG.setdefault("docker_compose_file", "compose.yaml")
+    CONFIG.setdefault("docker_service_name", "palworld")
+    CONFIG.setdefault("docker_env_file", ".env")
+    CONFIG.setdefault("palworld_api_host", "127.0.0.1")
+    CONFIG.setdefault("docker_proxy_url", "http://socket-proxy:2375")
+    CONFIG.setdefault("docker_container_name", "palworld-server")
+    CONFIG.setdefault("socket_proxy_configured", False)
     return CONFIG
 
 def save_config():
@@ -190,6 +209,8 @@ def get_palworld_ini_settings():
 
 def _get_default_ini_path():
     ini_path = CONFIG.get("palworld_ini_path", "")
+    if is_docker_backend() and CONFIG.get("palworld_dir"):
+        return os.path.join(CONFIG["palworld_dir"], "DefaultPalWorldSettings.ini")
     return os.path.join(os.path.dirname(ini_path), "DefaultPalWorldSettings.ini") if ini_path else ""
 
 def get_default_palworld_ini_settings():
@@ -207,12 +228,31 @@ def get_palworld_editor_settings():
     merged = dict(current)
     for key, value in get_default_palworld_ini_settings().items():
         merged.setdefault(key, value)
+    if is_docker_backend():
+        from core.setting_categories import SETTING_CATEGORIES
+
+        env = docker_deployment.read_env(get_docker_env_path())
+        for key in set(merged) | set(SETTING_CATEGORIES):
+            env_name = docker_deployment.setting_to_env_name(key)
+            if env_name in env:
+                merged[key] = env[env_name]
     return merged
 
 _parse_option_settings = parse_option_settings
 
 def update_palworld_ini_settings(updates):
     """Updates selected OptionSettings values while preserving other INI values."""
+    if is_docker_backend():
+        if is_server_process_running():
+            raise RuntimeError("Stop the Docker server before changing its settings.")
+        env_updates = {
+            docker_deployment.setting_to_env_name(key): value
+            for key, value in updates.items()
+        }
+        docker_deployment.update_env(get_docker_env_path(), env_updates)
+        return
+    if is_socket_proxy_backend() and is_server_process_running():
+        raise RuntimeError("Stop the Palworld container before changing its settings.")
     ini_path = CONFIG.get("palworld_ini_path", "")
     if not ini_path or not os.path.exists(ini_path):
         raise FileNotFoundError("PalWorldSettings.ini was not found. Select the Palworld server directory first.")
@@ -223,11 +263,19 @@ def update_palworld_ini_settings(updates):
         raise ValueError("PalWorldSettings.ini does not contain an OptionSettings entry.")
 
     pairs = _parse_option_settings(match.group(1))
-    values = dict(pairs)
+    quoted_keys = {
+        key
+        for key, value in pairs
+        if len(value) >= 2 and value[0] == value[-1] == '"'
+    }
+    values = {
+        key: value[1:-1] if key in quoted_keys else value
+        for key, value in pairs
+    }
     values.update({key: str(value) for key, value in updates.items()})
     serialized = ",".join(
         f'{key}="{value.replace(chr(34), chr(92) + chr(34))}"'
-        if (dict(pairs).get(key, "").startswith('"') or key in STRING_SETTING_KEYS)
+        if (key in quoted_keys or key in STRING_SETTING_KEYS)
         else f"{key}={value}"
         for key, value in values.items()
     )
@@ -237,11 +285,19 @@ def update_palworld_ini_settings(updates):
         f.write(contents)
 
 def get_palworld_backup_path():
+    if is_docker_backend():
+        return docker_deployment.backup_path(get_docker_env_path())
     ini_path = CONFIG.get("palworld_ini_path", "")
     return os.path.join(os.path.dirname(ini_path), PALWORLD_BACKUP_NAME) if ini_path else ""
 
 def backup_palworld_ini():
     """Replaces the single rollback copy with the current settings file."""
+    if is_docker_backend():
+        env_path = get_docker_env_path()
+        if not os.path.isfile(env_path):
+            raise FileNotFoundError("Docker .env file was not found.")
+        shutil.copy2(env_path, docker_deployment.backup_path(env_path))
+        return
     ini_path = CONFIG.get("palworld_ini_path", "")
     backup_path = get_palworld_backup_path()
     if not ini_path or not os.path.exists(ini_path):
@@ -257,6 +313,20 @@ def reset_palworld_ini_settings():
 
 def get_palworld_backup_changes():
     """Returns settings whose values differ from the current file."""
+    if is_docker_backend():
+        env_path = get_docker_env_path()
+        backup_path = docker_deployment.backup_path(env_path)
+        if not os.path.isfile(env_path):
+            raise FileNotFoundError("Docker .env file was not found.")
+        if not os.path.isfile(backup_path):
+            raise FileNotFoundError("No .env.backup file exists yet.")
+        current = docker_deployment.read_env(env_path)
+        backup = docker_deployment.read_env(backup_path)
+        return [
+            (key, current.get(key, ""), backup.get(key, ""))
+            for key in sorted(set(current) | set(backup))
+            if current.get(key) != backup.get(key)
+        ]
     ini_path = CONFIG.get("palworld_ini_path", "")
     backup_path = get_palworld_backup_path()
     if not ini_path or not os.path.exists(ini_path):
@@ -284,6 +354,13 @@ def _read_option_settings_file(path):
 
 def revert_to_palworld_backup():
     """Restores the backup and makes the pre-revert file the new backup."""
+    if is_docker_backend():
+        if is_server_process_running():
+            raise RuntimeError("Stop the Docker server before reverting settings.")
+        docker_deployment.revert_env(get_docker_env_path())
+        return
+    if is_socket_proxy_backend() and is_server_process_running():
+        raise RuntimeError("Stop the Palworld container before reverting settings.")
     ini_path = CONFIG.get("palworld_ini_path", "")
     backup_path = get_palworld_backup_path()
     if not ini_path or not os.path.exists(ini_path):
@@ -299,10 +376,20 @@ def revert_to_palworld_backup():
 def get_palworld_api_config():
     """Returns REST API settings from the INI, with compatibility for old configs."""
     settings = get_palworld_ini_settings()
+    env = docker_deployment.read_env(get_docker_env_path()) if is_docker_backend() else {}
     return {
-        "enabled": settings.get("RESTAPIEnabled", "False").lower() == "true",
-        "port": int(settings.get("RESTAPIPort", CONFIG.get("palworld_api_port", 8212))),
-        "admin_password": settings.get("AdminPassword", CONFIG.get("palworld_admin_password", "")),
+        "enabled": env.get(
+            "REST_API_ENABLED", settings.get("RESTAPIEnabled", "False")
+        ).lower() == "true",
+        "host": CONFIG.get("palworld_api_host", "127.0.0.1"),
+        "port": int(env.get(
+            "REST_API_PORT",
+            settings.get("RESTAPIPort", CONFIG.get("palworld_api_port", 8212)),
+        )),
+        "admin_password": env.get(
+            "ADMIN_PASSWORD",
+            settings.get("AdminPassword", CONFIG.get("palworld_admin_password", "")),
+        ),
     }
 
 def update_paths_from_dir(chosen_dir):
@@ -320,34 +407,105 @@ def update_paths_from_dir(chosen_dir):
     
     save_config()
 
+
+def is_docker_backend():
+    return CONFIG.get("server_backend", DEFAULT_SERVER_BACKEND) == "docker_compose"
+
+
+def is_socket_proxy_backend():
+    return CONFIG.get("server_backend", DEFAULT_SERVER_BACKEND) == "socket_proxy"
+
+
+def is_container_backend():
+    return is_docker_backend() or is_socket_proxy_backend()
+
+
+def get_docker_env_path():
+    compose_dir = CONFIG.get("docker_compose_dir", "")
+    env_file = CONFIG.get("docker_env_file", ".env")
+    if not compose_dir:
+        return ""
+    return env_file if os.path.isabs(env_file) else os.path.join(compose_dir, env_file)
+
+
+def configure_docker_backend(
+    compose_dir,
+    compose_file="compose.yaml",
+    service_name="palworld",
+    env_file=".env",
+    palworld_data_dir=None,
+):
+    compose_dir = os.path.abspath(os.path.expanduser(compose_dir))
+    data_dir = os.path.abspath(os.path.expanduser(
+        palworld_data_dir or os.path.join(compose_dir, "palworld")
+    ))
+    candidate = dict(CONFIG)
+    candidate.update({
+        "server_backend": "docker_compose",
+        "docker_compose_dir": compose_dir,
+        "docker_compose_file": compose_file,
+        "docker_service_name": service_name,
+        "docker_env_file": env_file,
+        "palworld_dir": data_dir,
+        "palworld_exe_path": "",
+        "palworld_ini_path": os.path.join(
+            data_dir,
+            "Pal",
+            "Saved",
+            "Config",
+            "LinuxServer",
+            "PalWorldSettings.ini",
+        ),
+        "palworld_api_host": "127.0.0.1",
+    })
+    create_backend(candidate).validate()
+    CONFIG.update(candidate)
+    save_config()
+
+
+def configure_socket_proxy_backend(
+    proxy_url="http://socket-proxy:2375",
+    container_name="palworld-server",
+    palworld_ini_path="/palworld-config/PalWorldSettings.ini",
+    palworld_api_host="palworld-server",
+):
+    candidate = dict(CONFIG)
+    candidate.update({
+        "server_backend": "socket_proxy",
+        "docker_proxy_url": str(proxy_url).strip().rstrip("/"),
+        "docker_container_name": str(container_name).strip() or "palworld-server",
+        "socket_proxy_configured": True,
+        "palworld_ini_path": os.path.abspath(os.path.expanduser(palworld_ini_path)),
+        "palworld_dir": "",
+        "palworld_exe_path": "",
+        "palworld_api_host": str(palworld_api_host).strip() or "palworld-server",
+    })
+    create_backend(candidate).validate()
+    settings = _read_option_settings_file(candidate["palworld_ini_path"])
+    if settings.get("RESTAPIEnabled", "False").lower() != "true":
+        raise ValueError("Enable RESTAPIEnabled in PalWorldSettings.ini before connecting.")
+    if not settings.get("AdminPassword"):
+        raise ValueError("Set AdminPassword in PalWorldSettings.ini before connecting.")
+    CONFIG.update(candidate)
+    save_config()
+
+
+def get_server_backend():
+    return create_backend(CONFIG)
+
+
 def get_server_process_id():
-    """Returns the PID of the first detected Palworld server process."""
-    for proc in psutil.process_iter(['name']):
-        try:
-            name = proc.info['name']
-            if name and ("PalServer.exe" in name or "PalServer-Win64" in name):
-                return proc.pid
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            continue
-    return None
+    """Returns the active native PID or Docker container ID."""
+    return get_server_backend().instance_id()
 
 
 def get_server_processes():
-    """Returns all detected Palworld server processes."""
-    processes = []
-    for proc in psutil.process_iter(['name']):
-        try:
-            name = proc.info['name']
-            if name and ("PalServer.exe" in name or "PalServer-Win64" in name):
-                processes.append(proc)
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            continue
-    return processes
+    """Returns detected native processes; Docker mode has no host processes."""
+    return get_server_backend().processes()
 
 
 def is_server_process_running():
-    """Scans the Windows process list natively without spawning cmd windows."""
-    return get_server_process_id() is not None
+    return get_server_backend().is_running()
 
 
 def set_server_launch_source(source, idle_shutdown_override=None):
@@ -375,49 +533,33 @@ def clear_server_launch_source():
 
 def get_server_launch_command():
     """Builds the configured supported or windowless server launch command."""
-    server_exe = CONFIG.get("palworld_exe_path")
-    if not server_exe:
-        raise FileNotFoundError("Server executable path is not configured.")
-
-    if not get_silent_server_launch():
-        return [server_exe, "-publiclobby"]
-
-    server_dir = CONFIG.get("palworld_dir") or os.path.dirname(server_exe)
-    binaries_dir = os.path.join(server_dir, "Pal", "Binaries", "Win64")
-    for binary_name in SERVER_BINARY_NAMES:
-        process_exe = os.path.join(binaries_dir, binary_name)
-        if os.path.isfile(process_exe):
-            # This matches the command created by PalServer.exe, but lets this
-            # app apply CREATE_NO_WINDOW to the process that creates conhost.
-            return [process_exe, "Pal", "-publiclobby", "-NOCONSOLE"]
-
-    raise FileNotFoundError(
-        "Silent launch is unavailable because the internal PalServer executable was not found. "
-        "Disable silent launch in App Settings and try again."
-    )
+    backend = get_server_backend()
+    if not hasattr(backend, "launch_command"):
+        raise RuntimeError("The container backend does not launch a local executable.")
+    return backend.launch_command()
 
 
 def start_server():
     """Starts the configured Palworld server without involving Discord."""
-    if is_server_process_running():
-        return False
-
-    subprocess.Popen(
-        get_server_launch_command(),
-        cwd=CONFIG.get("palworld_dir") or None,
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-    )
-    set_server_launch_source("app")
-    return True
+    started = get_server_backend().start()
+    if started:
+        set_server_launch_source("app")
+    return started
 
 def stop_server():
-    """Saves and requests a graceful shutdown through the Palworld API."""
+    """Saves and gracefully stops the selected server backend."""
     if not is_server_process_running():
         return False
 
     from core import api_client
 
-    api_client.call_palworld_api("save")
+    save_status = api_client.call_palworld_api("save")
+    if is_container_backend() and save_status not in (200, 202):
+        raise RuntimeError(f"Server save request returned HTTP {save_status}.")
+
+    if is_container_backend():
+        return get_server_backend().stop()
+
     status = api_client.call_palworld_api(
         "shutdown",
         payload={"waittime": 5, "message": "Server shutting down"},

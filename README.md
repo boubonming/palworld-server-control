@@ -1,6 +1,6 @@
 # Palworld Server Control
 
-Palworld Server Control is a lightweight Windows desktop manager for a local Palworld dedicated server. It provides:
+Palworld Server Control is a lightweight manager for a Palworld dedicated server. It supports the existing native Windows desktop workflow and a Linux headless controller for `thijsvanloef/palworld-server-docker`.
 
 - Palworld server folder and `PalWorldSettings.ini` management
 - Server status monitoring and settings editing
@@ -10,7 +10,7 @@ Palworld Server Control is a lightweight Windows desktop manager for a local Pal
 
 ## Requirements
 
-- Windows
+- Windows for the native desktop workflow, or Linux for Docker/web mode
 - Python 3.10+
 - A Palworld dedicated server installation
 - Python packages listed in `requirements.txt`
@@ -35,7 +35,37 @@ On first launch, select the folder containing `PalServer.exe`. The manager deriv
 <Palworld folder>\Pal\Saved\Config\WindowsServer\PalWorldSettings.ini
 ```
 
-Application configuration is stored in `config.json` beside the executable when packaged, or in the repository root during development. Do not commit that file because it may contain the Discord token and server credentials.
+## Linux controller, Socket Proxy, and web interface
+
+Linux mode runs this controller and LinuxServer Socket Proxy as a small stack. The controller keeps the Discord bot and idle-shutdown monitor on the server and exposes a password-protected web interface to your private network. Only Socket Proxy mounts the Docker socket; the controller receives narrowly filtered container status, start, and stop access.
+
+Prerequisites:
+
+- An existing `thijsvanloef/palworld-server-docker` container named `palworld-server`
+- A shared external Docker network, such as `palworld-control`, attached to both the controller and Palworld services
+- Palworld REST API enabled and reachable from the controller network
+- `DISABLE_GENERATE_SETTINGS=true` on the Palworld container
+- The host directory containing `PalWorldSettings.ini`
+
+The GitHub Actions workflow in `.github/workflows/controller-image.yml` publishes `ghcr.io/boubonming/palworld-server-control:latest` after changes reach `main`. Make that GHCR package public, or add its credentials to Portainer's registry configuration. Create the external `palworld-control` network and attach the Palworld service to it. Then deploy [`deploy/controller-stack.yaml`](deploy/controller-stack.yaml) through Portainer or Docker Compose with these stack variables:
+
+- `PALWORLD_CONTROL_WEB_PASSWORD`: web password of at least ten characters
+- `PALWORLD_CONFIG_DIR`: host path ending in `Pal/Saved/Config/LinuxServer`
+
+The stack automatically pulls and creates `lscr.io/linuxserver/socket-proxy`. Its port is not published, its filesystem is read-only, and its network is internal to the controller. General Docker POST access remains disabled; only container start and stop exceptions are enabled.
+
+Open `http://<linux-server-private-ip>:8080` from your personal PC. Keep this port restricted to a trusted LAN or private VPN; it is not intended for direct public-internet exposure.
+
+In **Docker setup**, verify:
+
+- Socket Proxy URL, normally `http://socket-proxy:2375`
+- Palworld container name, normally `palworld-server`
+- Mounted INI path, normally `/palworld-config/PalWorldSettings.ini`
+- Palworld REST hostname on the shared Docker network
+
+Server settings are written directly to the mounted INI while Palworld is stopped. A stop first calls Palworld's REST save endpoint and proceeds only when that succeeds. It then asks Socket Proxy to stop the container with a 60-second timeout, allowing the image's normal `SIGTERM` shutdown handling to run. Docker's `unless-stopped` policy respects this intentional stop.
+
+Application configuration is stored in `/data/config.json` in the controller container. The Windows desktop behavior and native server backend remain unchanged.
 
 ## Project structure
 

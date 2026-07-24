@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Docker setup · Palworld Server Control{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <h1>Docker setup</h1>
+    <p>Connect to the private LinuxServer Socket Proxy and mounted Palworld configuration.</p>
+  </div>
+</div>
+<section class="card">
+  <form method="post">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <label for="proxy_url">Docker Socket Proxy URL</label>
+    <input id="proxy_url" name="proxy_url" type="url"
+           value="{{ config.get('docker_proxy_url', 'http://socket-proxy:2375') }}"
+           required>
+    <small>This address stays inside the private Docker network.</small>
+
+    <label for="container_name">Palworld container name</label>
+    <input id="container_name" name="container_name"
+           value="{{ config.get('docker_container_name', 'palworld-server') }}" required>
+
+    <label for="palworld_ini_path">Mounted PalWorldSettings.ini path</label>
+    <input id="palworld_ini_path" name="palworld_ini_path"
+           value="{{ config.get('palworld_ini_path') or '/palworld-config/PalWorldSettings.ini' }}"
+           required>
+
+    <label for="palworld_api_host">Palworld REST API host</label>
+    <input id="palworld_api_host" name="palworld_api_host"
+           value="{{ config.get('palworld_api_host', 'palworld-server') }}"
+           placeholder="palworld-server" required>
+    <small>The controller must share a Docker network with the Palworld container.</small>
+
+    <button type="submit">Test and save connection</button>
+  </form>
+</section>
+<section class="card">
+  <h2>Required Palworld configuration</h2>
+  <p>The Palworld container must use <code>DISABLE_GENERATE_SETTINGS=true</code>, expose its REST API to the shared Docker network, and mount the same LinuxServer configuration directory provided to this controller.</p>
+</section>
+{% endblock %}

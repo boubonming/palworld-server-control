@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Server settings · Palworld Server Control{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <h1>Server settings</h1>
+    <p>Settings are written directly to the mounted PalWorldSettings.ini while the container is stopped.</p>
+  </div>
+</div>
+{% if running %}
+  <div class="flash error">Stop the server before editing settings.</div>
+{% endif %}
+<form method="post">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+  {% for category, items in groups %}
+    <details class="card settings-group" {% if loop.first %}open{% endif %}>
+      <summary>{{ category }}</summary>
+      <div class="settings-grid">
+        {% for item in items %}
+          <div class="setting">
+            <label for="setting-{{ item.key }}">{{ item.name }}</label>
+            <input
+              id="setting-{{ item.key }}"
+              name="setting__{{ item.key }}"
+              value="{{ item.value }}"
+              type="{{ 'password' if item.secret else 'text' }}"
+              {% if running %}disabled{% endif %}
+            >
+            <small>{{ item.description }}</small>
+          </div>
+        {% endfor %}
+      </div>
+    </details>
+  {% endfor %}
+  <div class="sticky-actions">
+    <button type="submit" {% if running or not groups %}disabled{% endif %}>Save settings</button>
+  </div>
+</form>
+{% if backup_exists %}
+  <form method="post" action="{{ url_for('revert_settings') }}" class="top-space">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <button class="secondary" type="submit" {% if running %}disabled{% endif %}>Revert to previous settings</button>
+  </form>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <h1>Server</h1>
+    <p>Monitor and manage the Linux Palworld container through a restricted Socket Proxy.</p>
+  </div>
+  {% if configured %}
+    <span id="status" class="status {{ 'running' if running else 'stopped' }}">
+      {{ "Running" if running else "Stopped" }}
+    </span>
+  {% endif %}
+</div>
+
+{% if not configured %}
+  <section class="card empty">
+    <h2>No Docker connection configured</h2>
+    <p>Connect the included Socket Proxy and mounted Palworld settings file.</p>
+    <a class="button" href="{{ url_for('setup') }}">Configure Docker</a>
+  </section>
+{% else %}
+  <section class="card">
+    <div class="actions">
+      <form method="post" action="{{ url_for('server_action', action='start') }}">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" {% if running %}disabled{% endif %}>Start</button>
+      </form>
+      <form method="post" action="{{ url_for('server_action', action='stop') }}">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <button class="danger" type="submit" {% if not running %}disabled{% endif %}>Save and stop</button>
+      </form>
+    </div>
+    <dl class="details">
+      <dt>Container</dt><dd>{{ config.docker_container_name }}</dd>
+      <dt>Settings file</dt><dd>{{ config.palworld_ini_path }}</dd>
+      <dt>Socket Proxy</dt><dd>{{ config.docker_proxy_url }}</dd>
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2>Announcement</h2>
+    <form method="post" action="{{ url_for('announce') }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <label for="message">Message to online players</label>
+      <div class="inline">
+        <input id="message" name="message" maxlength="500" required>
+        <button type="submit" {% if not running %}disabled{% endif %}>Send</button>
+      </div>
+    </form>
+  </section>
+{% endif %}
+
+<section class="card">
+  <h2>Recent activity</h2>
+  {% if activity %}
+    <pre class="activity">{% for line in activity %}{{ line }}
+{% endfor %}</pre>
+  {% else %}
+    <p>No activity recorded yet.</p>
+  {% endif %}
+</section>
+{% endblock %}
+{% block scripts %}
+{% if configured %}
+<script>
+setInterval(async () => {
+  const response = await fetch("{{ url_for('status_api') }}");
+  if (!response.ok) return;
+  const data = await response.json();
+  const status = document.getElementById("status");
+  status.textContent = data.state === "running" ? "Running" : "Stopped";
+  status.className = "status " + data.state;
+}, 5000);
+</script>
+{% endif %}
+{% endblock %}

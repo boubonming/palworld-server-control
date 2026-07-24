@@ -104,11 +104,7 @@ class AutoShutdownMonitor(QObject):
             if self.empty_minutes_counter < shutdown_minutes:
                 return
 
-            api_client.call_palworld_api("save")
-            api_client.call_palworld_api(
-                "shutdown",
-                payload={"waittime": 5, "message": "Inactivity shutdown"},
-            )
+            config_manager.stop_server()
             self.empty_minutes_counter = 0
             self._server_was_running = False
             self.status_changed.emit(ServerStatus(ServerState.STOPPED))

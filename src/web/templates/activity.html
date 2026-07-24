@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Activity · Palworld Server Control{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <h1>Activity</h1>
+    <p>Recent controller and Discord events from this process.</p>
+  </div>
+</div>
+<section class="card">
+  {% if activity %}
+    <pre class="activity">{% for line in activity %}{{ line }}
+{% endfor %}</pre>
+  {% else %}
+    <p>No activity recorded yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

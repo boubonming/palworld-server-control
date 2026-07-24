@@ -9,10 +9,11 @@ def call_palworld_api(endpoint, method="POST", payload=None):
     stored dynamically in config_manager.CONFIG.
     """
     api_config = config_manager.get_palworld_api_config()
+    api_host = api_config.get("host", "127.0.0.1")
     api_port = api_config["port"]
     admin_password = api_config["admin_password"]
 
-    url = f"http://127.0.0.1:{api_port}/v1/api/{endpoint}"
+    url = f"http://{api_host}:{api_port}/v1/api/{endpoint}"
     
     # Generate basic authentication token dynamically
     auth_str = f"admin:{admin_password}"
