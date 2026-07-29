@@ -13,7 +13,7 @@ from werkzeug.security import generate_password_hash
 
 from core import config_manager
 from controller.web.app import create_web_app
-from controller.web.runtime import HeadlessRuntime
+from controller.runtime import HeadlessRuntime
 
 
 def _arguments():

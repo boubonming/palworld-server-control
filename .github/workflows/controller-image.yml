@@ -2,7 +2,7 @@ name: Controller container image
 
 on:
   push:
-    branches: [main, linux-docker]
+    branches: [main]
     tags: ["v*"]
   workflow_dispatch:
 
@@ -27,8 +27,8 @@ jobs:
         with:
           images: ghcr.io/boubonming/palworld-server-control
           tags: |
-            type=ref,event=branch
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=ref,event=tag
             type=sha
       - uses: docker/build-push-action@v6
         with:

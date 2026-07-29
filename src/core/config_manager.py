@@ -421,6 +421,34 @@ def is_container_backend():
     return is_docker_backend() or is_socket_proxy_backend()
 
 
+def server_backend_is_configured(config=None, platform=None):
+    config = CONFIG if config is None else config
+    platform = sys.platform if platform is None else platform
+    backend = config.get("server_backend", DEFAULT_SERVER_BACKEND)
+    if backend == "windows_native":
+        return (
+            platform == "win32"
+            and os.path.isdir(config.get("palworld_dir", ""))
+            and os.path.isfile(config.get("palworld_exe_path", ""))
+        )
+    if backend == "docker_compose":
+        compose_dir = config.get("docker_compose_dir", "")
+        compose_file = config.get("docker_compose_file", "compose.yaml")
+        env_file = config.get("docker_env_file", ".env")
+        if not compose_dir:
+            return False
+        compose_path = (
+            compose_file
+            if os.path.isabs(compose_file)
+            else os.path.join(compose_dir, compose_file)
+        )
+        env_path = (
+            env_file if os.path.isabs(env_file) else os.path.join(compose_dir, env_file)
+        )
+        return os.path.isfile(compose_path) and os.path.isfile(env_path)
+    return backend == "socket_proxy" and config.get("socket_proxy_configured", False)
+
+
 def get_docker_env_path():
     compose_dir = CONFIG.get("docker_compose_dir", "")
     env_file = CONFIG.get("docker_env_file", ".env")

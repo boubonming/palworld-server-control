@@ -1,6 +1,6 @@
 # Palworld Server Control
 
-Palworld Server Control is a lightweight manager for a Palworld dedicated server. It supports the existing native Windows desktop workflow and a Linux headless controller for `thijsvanloef/palworld-server-docker`.
+Palworld Server Control is a lightweight manager for a Palworld dedicated server. The desktop app supports a native Windows server or a local Docker Compose server on Windows and Linux. A headless controller is also available for `thijsvanloef/palworld-server-docker`.
 
 - Palworld server folder and `PalWorldSettings.ini` management
 - Server status monitoring and settings editing
@@ -10,10 +10,10 @@ Palworld Server Control is a lightweight manager for a Palworld dedicated server
 
 ## Requirements
 
-- Windows for the native desktop workflow, or Linux for Docker/web mode
+- Windows for the native desktop workflow, or Windows/Linux for Docker mode
 - Python 3.10+
 - A Palworld dedicated server installation
-- Python packages listed in `requirements.txt` for Windows desktop mode
+- Python packages listed in `requirements.txt` for desktop mode
 
 Install dependencies with:
 
@@ -35,15 +35,15 @@ Run the desktop app from the repository root:
 python src/main.py
 ```
 
-On first launch, select the folder containing `PalServer.exe`. The manager derives the settings path from:
+On first launch, choose a native Windows server or Docker Compose. Native mode derives the settings path from:
 
 ```text
 <Palworld folder>\Pal\Saved\Config\WindowsServer\PalWorldSettings.ini
 ```
 
-## Linux controller, Socket Proxy, and web interface
+## Docker controller, Socket Proxy, and web interface
 
-Linux mode runs this controller and LinuxServer Socket Proxy as a small stack. The controller keeps the Discord bot and idle-shutdown monitor on the server and exposes a password-protected web interface to your private network. Only Socket Proxy mounts the Docker socket; the controller receives narrowly filtered container status, start, and stop access.
+This Linux-container stack runs on Docker Engine for Linux or Docker Desktop for Windows. The controller keeps the Discord bot and idle-shutdown monitor on the server and exposes a password-protected web interface to your private network. Only Socket Proxy mounts the Docker socket; the controller receives narrowly filtered container status, start, and stop access.
 
 Prerequisites:
 
@@ -53,11 +53,11 @@ Prerequisites:
 - `DISABLE_GENERATE_SETTINGS=true` on the Palworld container
 - The host directory containing `PalWorldSettings.ini`
 
-The GitHub Actions workflow in `.github/workflows/controller-image.yml` publishes `ghcr.io/boubonming/palworld-server-control:linux-docker` from the test branch and `:latest` after changes reach `main`. Make that GHCR package public, or add its credentials to Portainer's registry configuration. Create the external `palworld-control` network and attach the Palworld service to it. Then deploy [`deploy/controller-stack.yaml`](deploy/controller-stack.yaml) through Portainer or Docker Compose with these stack variables:
+The GitHub Actions workflow in `.github/workflows/controller-image.yml` publishes `ghcr.io/boubonming/palworld-server-control:latest` from `main`, plus version and commit tags. Make that GHCR package public, or add its credentials to Portainer's registry configuration. Create the external `palworld-control` network and attach the Palworld service to it. Then deploy [`deploy/controller-stack.yaml`](deploy/controller-stack.yaml) through Portainer or Docker Compose with these stack variables:
 
 - `PALWORLD_CONTROL_WEB_PASSWORD`: web password of at least ten characters
 - `PALWORLD_CONFIG_DIR`: host path ending in `Pal/Saved/Config/LinuxServer`
-- `CONTROLLER_IMAGE_TAG`: use `linux-docker` for branch testing; omit it for production `latest`
+- `CONTROLLER_IMAGE_TAG`: optional image tag; omit it to use `latest`
 
 The stack automatically pulls and creates `lscr.io/linuxserver/socket-proxy`. Its port is not published, its filesystem is read-only, and its network is internal to the controller. General Docker POST access remains disabled; only container start and stop exceptions are enabled.
 

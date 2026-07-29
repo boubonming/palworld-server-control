@@ -5,20 +5,14 @@ import tempfile
 from PySide6.QtCore import QLockFile
 from PySide6.QtWidgets import (
     QApplication,
-    QMenu,
     QDialog,
-    QDialogButtonBox,
-    QFileDialog,
+    QMenu,
     QHBoxLayout,
-    QLabel,
-    QLineEdit,
     QListWidget,
     QMainWindow,
     QMessageBox,
-    QPushButton,
     QStackedWidget,
     QSystemTrayIcon,
-    QVBoxLayout,
     QWidget,
 )
 
@@ -35,6 +29,7 @@ from desktop.ui.pages import (
     ServerSettingsPage,
     ServerStatusPage,
 )
+from desktop.server_setup_dialog import ServerSetupDialog
 from shared.status import ServerState, ServerStatus
 
 
@@ -55,71 +50,10 @@ def acquire_single_instance_lock():
     return lock
 
 
-class PalworldFolderDialog(QDialog):
-    def __init__(self, initial_dir="", parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Set Palworld folder")
-        self.setModal(True)
-        self.resize(520, 160)
-
-        layout = QVBoxLayout(self)
-        layout.addWidget(QLabel(
-            "Select the Palworld server folder containing PalServer.exe to continue."
-        ))
-
-        path_layout = QHBoxLayout()
-        self.path = QLineEdit(initial_dir)
-        self.path.setPlaceholderText("Path to your Palworld server folder")
-        path_layout.addWidget(self.path)
-        browse = QPushButton("Browse...")
-        browse.clicked.connect(self.browse)
-        path_layout.addWidget(browse)
-        layout.addLayout(path_layout)
-
-        self.error = QLabel()
-        self.error.setStyleSheet("color: #ff6b6b;")
-        self.error.setWordWrap(True)
-        layout.addWidget(self.error)
-
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        buttons.accepted.connect(self.validate_and_accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-    def browse(self):
-        chosen_dir = QFileDialog.getExistingDirectory(
-            self, "Select Palworld server folder", self.path.text().strip()
-        )
-        if chosen_dir:
-            self.path.setText(chosen_dir)
-
-    def validate_and_accept(self):
-        chosen_dir = os.path.normpath(self.path.text().strip())
-        if not os.path.isdir(chosen_dir):
-            self.error.setText("Select an existing folder.")
-            return
-        if not os.path.isfile(os.path.join(chosen_dir, "PalServer.exe")):
-            self.error.setText("That folder does not contain PalServer.exe.")
-            return
-        self.path.setText(chosen_dir)
-        self.accept()
-
-    def selected_dir(self):
-        return self.path.text().strip()
-
-
-def ensure_palworld_folder(config):
-    configured_dir = config.get("palworld_dir", "")
-    if os.path.isdir(configured_dir) and os.path.isfile(os.path.join(configured_dir, "PalServer.exe")):
+def ensure_server_backend(config):
+    if config_manager.server_backend_is_configured(config):
         return True
-
-    dialog = PalworldFolderDialog(configured_dir)
-    if dialog.exec() != QDialog.DialogCode.Accepted:
-        return False
-    config_manager.update_paths_from_dir(dialog.selected_dir())
-    return True
+    return ServerSetupDialog(config).exec() == QDialog.DialogCode.Accepted
 
 
 class MainWindow(QMainWindow):
@@ -292,7 +226,7 @@ def main():
             "Palworld Server Manager is already running.",
         )
         sys.exit(0)
-    if not ensure_palworld_folder(config):
+    if not ensure_server_backend(config):
         sys.exit(0)
     window = MainWindow()
     if "--background" in sys.argv:

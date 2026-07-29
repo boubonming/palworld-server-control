@@ -1,4 +1,5 @@
 import os
+import sys
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIntValidator
@@ -21,9 +22,20 @@ class AppSettingsPage(Page):
     def __init__(self):
         super().__init__("App Settings", "Configure the manager application")
         form = QFormLayout()
-        self.directory = QLineEdit(config_manager.CONFIG.get("palworld_dir", ""))
-        self.directory.editingFinished.connect(self.save_directory)
-        form.addRow("Palworld directory", self.directory)
+        container_backend = config_manager.is_container_backend()
+        directory_value = (
+            config_manager.CONFIG.get("docker_compose_dir", "")
+            if config_manager.is_docker_backend()
+            else config_manager.CONFIG.get("palworld_dir", "")
+        )
+        self.directory = QLineEdit(directory_value)
+        self.directory.setReadOnly(container_backend)
+        if not container_backend:
+            self.directory.editingFinished.connect(self.save_directory)
+        form.addRow(
+            "Compose directory" if config_manager.is_docker_backend() else "Palworld directory",
+            self.directory,
+        )
 
         self.close_behavior = QCheckBox("Minimize to system tray when exit")
         self.close_behavior.setChecked(config_manager.get_gui_close_behavior() == "minimize")
@@ -33,14 +45,19 @@ class AppSettingsPage(Page):
         self.auto_start = QCheckBox("Autostart in background")
         self.auto_start.setChecked(config_manager.get_auto_start())
         self.auto_start.toggled.connect(self.save_auto_start)
-        form.addRow("Startup behavior", self.auto_start)
+        if sys.platform == "win32":
+            form.addRow("Startup behavior", self.auto_start)
 
         self.silent_server_launch = QCheckBox(
             "Run silently by bypassing the PalServer.exe wrapper"
         )
         self.silent_server_launch.setChecked(config_manager.get_silent_server_launch())
         self.silent_server_launch.toggled.connect(self.save_silent_server_launch)
-        form.addRow("Server launch", self.silent_server_launch)
+        native_windows = (
+            sys.platform == "win32" and not config_manager.is_container_backend()
+        )
+        if native_windows:
+            form.addRow("Server launch", self.silent_server_launch)
 
         self.silent_launch_warning = QLabel(
             "Warning: Silent mode launches PalServer's internal executable directly. "
@@ -49,7 +66,8 @@ class AppSettingsPage(Page):
         self.silent_launch_warning.setWordWrap(True)
         self.silent_launch_warning.setStyleSheet("color: #f0ad4e;")
         self.silent_launch_warning.setVisible(self.silent_server_launch.isChecked())
-        form.addRow("", self.silent_launch_warning)
+        if native_windows:
+            form.addRow("", self.silent_launch_warning)
 
         self.auto_shutdown_enabled = QCheckBox("Enable idle shutdown")
         self.auto_shutdown_enabled.setChecked(config_manager.get_auto_shutdown_enabled())
