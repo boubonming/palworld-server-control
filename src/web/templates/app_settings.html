@@ -15,9 +15,9 @@
     <p>Automatically save and stop the Palworld server after it remains empty.</p>
     <div class="preference-row">
       <label class="check"><input type="checkbox" name="auto_shutdown_enabled" {% if config.get('auto_shutdown_enabled', true) %}checked{% endif %}> Enable idle shutdown</label>
-      <label class="compact-number">Empty for
+      <label class="compact-number"><span>Empty for</span>
         <input name="auto_shutdown_empty_minutes" type="number" min="1" max="1440" value="{{ config.get('auto_shutdown_empty_minutes', 5) }}">
-        minutes
+        <span>minutes</span>
       </label>
     </div>
   </section>

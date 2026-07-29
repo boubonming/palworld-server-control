@@ -45,8 +45,10 @@
       <div class="settings-grid">
         {% for item in items %}
           <div class="setting" data-search="{{ item.name|lower }} {{ item.key|lower }}">
-            <label for="setting-{{ item.key }}">{{ item.name }}</label>
-            <code>{{ item.key }}</code>
+            <label
+              for="setting-{{ item.key }}"
+              title="{{ item.key }}{% if item.description %} — {{ item.description }}{% endif %}"
+            >{{ item.name }}</label>
 
             {% if item.kind == "boolean" %}
               <input type="hidden" name="present__{{ item.key }}" value="1">
@@ -141,7 +143,7 @@
                 {% if running %}disabled{% endif %}
               >
             {% endif %}
-            <small>{{ item.description }}</small>
+            {% if item.description %}<small>{{ item.description }}</small>{% endif %}
           </div>
         {% endfor %}
       </div>

@@ -50,8 +50,10 @@ def register_discord_routes(app, runtime):
 
     @app.post("/discord/channels")
     def save_discord_channels():
-        config_manager.CONFIG["palworld_channel_ids"] = _submitted_channel_ids()
+        channel_ids = _submitted_channel_ids()
+        config_manager.CONFIG["palworld_channel_ids"] = channel_ids
         config_manager.save_config()
+        discord_bot.discord_manager.refresh_channel_info(channel_ids)
         runtime.record_discord("Discord control channels updated from web")
         flash("Discord control channels saved.")
         return redirect(url_for("discord_settings"))

@@ -31,6 +31,26 @@ def retry_delay(attempt):
     return min(5 * (2 ** max(0, attempt)), 60)
 
 
+async def resolve_channel_info(bot_instance, channel_ids):
+    for raw_channel_id in channel_ids:
+        channel_id = normalize_channel_id(raw_channel_id)
+        if channel_id is None:
+            continue
+        channel = bot_instance.get_channel(channel_id)
+        if channel is None:
+            try:
+                channel = await bot_instance.fetch_channel(channel_id)
+            except Exception:
+                channel = None
+        if channel is None:
+            signals.discord_channel_info.emit(
+                str(channel_id),
+                "Unavailable - check the ID and bot access",
+            )
+            continue
+        signals.discord_channel_info.emit(str(channel_id), channel_context(channel))
+
+
 def create_bot():
     class ManagedBot(commands.Bot):
         async def setup_hook(self):
@@ -71,20 +91,10 @@ def create_bot():
             await bot_instance.change_presence(status=discord.Status.idle, activity=None)
         signals.status_changed.emit(server_status)
 
-        for raw_channel_id in config_manager.CONFIG.get("palworld_channel_ids", []):
-            channel_id = normalize_channel_id(raw_channel_id)
-            if channel_id is None:
-                continue
-            channel = bot_instance.get_channel(channel_id)
-            if channel is None:
-                try:
-                    channel = await bot_instance.fetch_channel(channel_id)
-                except Exception:
-                    channel = None
-            if channel is None:
-                signals.discord_channel_info.emit(str(channel_id), "Unavailable - check the ID and bot access")
-                continue
-            signals.discord_channel_info.emit(str(channel_id), channel_context(channel))
+        await resolve_channel_info(
+            bot_instance,
+            config_manager.CONFIG.get("palworld_channel_ids", []),
+        )
 
     @bot_instance.event
     async def on_message(message):
@@ -350,6 +360,20 @@ class DiscordBotManager:
             return False
         asyncio.run_coroutine_threadsafe(
             self._update_server_presence(status, bot_instance),
+            loop,
+        )
+        return True
+
+    def refresh_channel_info(self, channel_ids):
+        """Resolve saved channel details without reconnecting the bot."""
+        with self._lock:
+            loop = self.loop
+            bot_instance = bot
+            active = self._state == "running"
+        if not active or loop is None or bot_instance is None:
+            return False
+        asyncio.run_coroutine_threadsafe(
+            resolve_channel_info(bot_instance, channel_ids),
             loop,
         )
         return True

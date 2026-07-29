@@ -58,23 +58,25 @@
   </div>
   <p class="helper-text">To copy an ID: enable Discord Developer Mode, right-click a channel, then select <strong>Copy Channel ID</strong>.</p>
 
-  <form method="post" action="{{ url_for('save_discord_channels') }}">
+  <form id="channels-form" method="post" action="{{ url_for('save_discord_channels') }}">
     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
     <div id="channel-list" class="channel-list">
       {% for channel_id in config.get('palworld_channel_ids', []) %}
         {% set resolved_name = discord_channels.get(channel_id|string, '') %}
-        <div class="channel-card">
+        <div class="channel-card" data-persisted="true">
           <div class="channel-identity">
             <span class="channel-dot {{ 'resolved' if resolved_name else 'unresolved' }}"></span>
             <div>
               <strong class="channel-name">{{ resolved_name or "Channel not resolved yet" }}</strong>
-              <small class="channel-state">{{ "Bot can access this channel" if resolved_name else "Save, then restart the bot to verify access" }}</small>
+              <small class="channel-state">{{ "Bot can access this channel" if resolved_name else "Waiting for the bot to verify access" }}</small>
+              <small class="channel-save-state saved">Saved</small>
             </div>
           </div>
           <div class="channel-editor">
             <label>Channel ID
-              <input name="palworld_channel_ids" inputmode="numeric" pattern="[0-9]+" value="{{ channel_id }}" placeholder="123456789012345678" required>
+              <input name="palworld_channel_ids" inputmode="numeric" pattern="[0-9]+" value="{{ channel_id }}" placeholder="123456789012345678" required readonly>
             </label>
+            <button class="secondary compact edit-channel" type="button">Edit</button>
             <button class="secondary compact remove-channel" type="button">Remove</button>
           </div>
         </div>
@@ -84,7 +86,10 @@
       <strong>No control channels configured</strong>
       <p>Add a channel before using Discord commands such as <code>!start</code> and <code>!stop</code>.</p>
     </div>
-    <button type="submit">Save channels</button>
+    <div class="channel-save-row">
+      <button id="save-channels" type="submit" disabled>Save channels</button>
+      <span id="channel-save-feedback" class="helper-text">All channel changes are saved.</span>
+    </div>
   </form>
 </section>
 
@@ -102,26 +107,44 @@
 <script>
 const channelList = document.getElementById("channel-list");
 const channelEmpty = document.getElementById("channel-empty");
+const channelsForm = document.getElementById("channels-form");
+const saveChannels = document.getElementById("save-channels");
+const channelSaveFeedback = document.getElementById("channel-save-feedback");
+const initialChannels = [...channelList.querySelectorAll('input[name="palworld_channel_ids"]')].map(input => input.value.trim());
 
 function updateChannelEmptyState() {
   channelEmpty.hidden = channelList.children.length !== 0;
 }
 
+function currentChannels() {
+  return [...channelList.querySelectorAll('input[name="palworld_channel_ids"]')].map(input => input.value.trim());
+}
+
+function updateChannelSaveState() {
+  const dirty = JSON.stringify(currentChannels()) !== JSON.stringify(initialChannels);
+  saveChannels.disabled = !dirty;
+  saveChannels.textContent = dirty ? "Save channels *" : "Save channels";
+  channelSaveFeedback.textContent = dirty ? "Channel changes have not been saved." : "All channel changes are saved.";
+}
+
 function channelCard(value = "") {
   const card = document.createElement("div");
   card.className = "channel-card";
+  card.dataset.persisted = "false";
   card.innerHTML = `
     <div class="channel-identity">
       <span class="channel-dot unresolved"></span>
       <div>
         <strong class="channel-name">New channel</strong>
-        <small class="channel-state">Save, then restart the bot to verify access</small>
+        <small class="channel-state">Save to verify access with the running bot</small>
+        <small class="channel-save-state unsaved">Not saved</small>
       </div>
     </div>
     <div class="channel-editor">
       <label>Channel ID
         <input name="palworld_channel_ids" inputmode="numeric" pattern="[0-9]+" placeholder="123456789012345678" required>
       </label>
+      <button class="secondary compact edit-channel" type="button" hidden>Edit</button>
       <button class="secondary compact remove-channel" type="button">Remove</button>
     </div>`;
   card.querySelector("input").value = value;
@@ -132,13 +155,36 @@ document.getElementById("add-channel").addEventListener("click", () => {
   const card = channelCard();
   channelList.append(card);
   updateChannelEmptyState();
+  updateChannelSaveState();
   card.querySelector("input").focus();
 });
 channelList.addEventListener("click", event => {
+  if (event.target.classList.contains("edit-channel")) {
+    const card = event.target.closest(".channel-card");
+    const input = card.querySelector("input");
+    input.readOnly = false;
+    event.target.hidden = true;
+    input.focus();
+    input.select();
+  }
   if (event.target.classList.contains("remove-channel")) {
     event.target.closest(".channel-card").remove();
     updateChannelEmptyState();
+    updateChannelSaveState();
   }
+});
+channelList.addEventListener("input", event => {
+  if (!event.target.matches('input[name="palworld_channel_ids"]')) return;
+  const card = event.target.closest(".channel-card");
+  const saveState = card.querySelector(".channel-save-state");
+  saveState.textContent = "Not saved";
+  saveState.className = "channel-save-state unsaved";
+  updateChannelSaveState();
+});
+channelsForm.addEventListener("submit", () => {
+  saveChannels.disabled = true;
+  saveChannels.textContent = "Saving...";
+  channelSaveFeedback.textContent = "Saving channel changes...";
 });
 
 setInterval(async () => {
@@ -152,9 +198,16 @@ setInterval(async () => {
   document.getElementById("discord-activity").textContent = data.activity.length ? data.activity.join("\n") : "No Discord activity recorded yet.";
   for (const card of channelList.querySelectorAll(".channel-card")) {
     const id = card.querySelector("input").value.trim();
+    const saveState = card.querySelector(".channel-save-state");
+    if (saveState.classList.contains("unsaved")) {
+      card.querySelector(".channel-name").textContent = card.dataset.persisted === "true" ? "Channel changes pending" : "New channel";
+      card.querySelector(".channel-state").textContent = "Save this channel before access is checked";
+      card.querySelector(".channel-dot").className = "channel-dot unresolved";
+      continue;
+    }
     const resolvedName = data.channels[id];
     card.querySelector(".channel-name").textContent = resolvedName || (id ? "Channel not resolved yet" : "New channel");
-    card.querySelector(".channel-state").textContent = resolvedName ? "Bot can access this channel" : "Save, then restart the bot to verify access";
+    card.querySelector(".channel-state").textContent = resolvedName ? "Bot can access this channel" : "Waiting for the bot to verify access";
     card.querySelector(".channel-dot").className = "channel-dot " + (resolvedName ? "resolved" : "unresolved");
   }
 }, 5000);

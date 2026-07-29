@@ -87,7 +87,6 @@ fieldset { border: 1px solid #444750; border-radius: 8px; margin-bottom: 20px; }
 .radio input, .check input { width: auto; margin-right: 8px; }
 .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
 .setting small { display: block; color: #9296a2; line-height: 1.4; margin-top: 6px; }
-.setting code { display: block; color: #7f8491; font-size: .75rem; margin: -3px 0 8px; overflow-wrap: anywhere; }
 .setting-check { margin-top: 10px; }
 .multi-picker {
   position: relative;
@@ -135,7 +134,7 @@ fieldset { border: 1px solid #444750; border-radius: 8px; margin-bottom: 20px; }
 .multi-picker-option + .multi-picker-option { border-top: 1px solid #30323a; }
 .multi-picker-option:hover { background: #2c2e35; }
 .multi-picker-option input { width: auto; grid-row: 1 / span 2; }
-.multi-picker-option code { margin: 0; }
+.multi-picker-option code { margin: 0; color: #7f8491; font-size: .75rem; overflow-wrap: anywhere; }
 .settings-toolbar { display: grid; grid-template-columns: max-content 1fr; gap: 10px 14px; align-items: center; }
 .settings-toolbar label { margin: 0; }
 .settings-workspace { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 20px; align-items: start; }
@@ -220,11 +219,19 @@ fieldset { border: 1px solid #444750; border-radius: 8px; margin-bottom: 20px; }
 .channel-dot { width: 10px; height: 10px; border-radius: 50%; background: #7b808c; }
 .channel-dot.resolved { background: #63d471; box-shadow: 0 0 0 4px #203b2a; }
 .channel-dot.unresolved { background: #f2c94c; box-shadow: 0 0 0 4px #41391d; }
-.channel-editor { display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: 10px; align-items: end; }
+.channel-editor { display: grid; grid-template-columns: minmax(0, 1fr) max-content max-content; gap: 10px; align-items: end; }
 .channel-editor label { margin: 0; }
+.channel-editor input[readonly] { color: #b8bbc5; background: #25262c; cursor: default; }
+.channel-save-state { margin-top: 5px; font-weight: 700; }
+.channel-save-state.saved { color: #6ee7a1; }
+.channel-save-state.unsaved { color: #ffd36e; }
+.channel-save-row { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+.channel-save-row button { margin: 0; }
+.channel-save-row .helper-text { margin: 0; }
 .empty-state { margin-top: 18px; padding: 22px; text-align: center; border: 1px dashed #4b4e59; border-radius: 10px; }
 .empty-state p { margin-bottom: 0; }
 .preference-row { display: flex; flex-wrap: wrap; gap: 20px 32px; align-items: center; margin-top: 20px; }
+.preference-row .check { margin: 0; }
 .compact-number { display: flex; align-items: center; gap: 9px; margin: 0; font-weight: 400; }
 .compact-number input { width: 100px; }
 .settings-form-stack > button { margin-top: 0; }

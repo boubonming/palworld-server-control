@@ -16,7 +16,7 @@ from core.setting_editor import (
     serialize_multi_values,
     setting_display_name,
 )
-from core.setting_metadata import get_setting_tooltip
+from core.setting_metadata import get_setting_description
 
 
 def _submitted_updates(current_values):
@@ -51,7 +51,7 @@ def _setting_groups(values):
             "key": key,
             "name": setting_display_name(key),
             "value": value,
-            "description": get_setting_tooltip(key),
+            "description": get_setting_description(key),
             **describe_setting(key, value),
         })
     ordered_groups = []
