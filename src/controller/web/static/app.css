@@ -15,7 +15,16 @@ header {
   background: #24252b;
   border-bottom: 1px solid #373941;
 }
-.brand { color: white; font-weight: 700; text-decoration: none; white-space: nowrap; }
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: white;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.brand img { width: 34px; height: 34px; border-radius: 8px; }
 header nav { display: flex; gap: 18px; flex: 1; overflow-x: auto; }
 header nav a, .link-button { color: #b8bbc5; text-decoration: none; background: none; padding: 0; }
 header nav a:hover, .link-button:hover { color: white; background: none; }
