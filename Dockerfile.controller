@@ -8,6 +8,7 @@ WORKDIR /app
 COPY requirements-common.txt requirements-controller.txt ./
 RUN pip install --no-cache-dir -r requirements-controller.txt
 COPY src ./src
+COPY metadata.json technology_ids.json ./
 
 RUN mkdir -p /data
 

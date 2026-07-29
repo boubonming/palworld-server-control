@@ -7,8 +7,9 @@ from flask import Flask, abort, redirect, request, session, url_for
 
 from core import config_manager
 from web.routes import (
+    register_app_settings_routes,
     register_auth_routes,
-    register_controller_routes,
+    register_discord_routes,
     register_server_routes,
     register_settings_routes,
 )
@@ -51,5 +52,6 @@ def create_web_app(runtime):
     register_auth_routes(app)
     register_server_routes(app, runtime)
     register_settings_routes(app, runtime)
-    register_controller_routes(app, runtime)
+    register_discord_routes(app, runtime)
+    register_app_settings_routes(app, runtime)
     return app

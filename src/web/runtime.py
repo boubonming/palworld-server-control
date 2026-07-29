@@ -12,6 +12,7 @@ class HeadlessRuntime:
 
     def __init__(self):
         self._activity = deque(maxlen=300)
+        self._discord_activity = deque(maxlen=300)
         self._activity_lock = threading.Lock()
         self._discord_status = "Discord bot is stopped"
         self._discord_channels = {}
@@ -24,7 +25,7 @@ class HeadlessRuntime:
             lambda status: self.record(f"Server status: {status.display}")
         )
         discord_bot.signals.bot_status_changed.connect(self._record_discord_status)
-        discord_bot.signals.discord_activity.connect(self.record)
+        discord_bot.signals.discord_activity.connect(self.record_discord)
         discord_bot.signals.discord_channel_info.connect(self._record_discord_channel)
 
     def record(self, message):
@@ -36,9 +37,18 @@ class HeadlessRuntime:
         with self._activity_lock:
             return list(self._activity)
 
+    def record_discord(self, message):
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with self._activity_lock:
+            self._discord_activity.appendleft(f"[{timestamp}] {message}")
+
+    def discord_activity(self):
+        with self._activity_lock:
+            return list(self._discord_activity)
+
     def _record_discord_status(self, message):
         self._discord_status = str(message)
-        self.record(message)
+        self.record_discord(message)
 
     def _record_discord_channel(self, channel_id, label):
         self._discord_channels[str(channel_id)] = str(label)

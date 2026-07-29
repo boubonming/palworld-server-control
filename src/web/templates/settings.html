@@ -14,20 +14,34 @@
 <div class="settings-toolbar card">
   <label for="settings-search">Search settings</label>
   <input id="settings-search" type="search" placeholder="Search by setting name or key...">
-  <label for="category-filter">Category</label>
-  <select id="category-filter">
-    <option value="">All categories</option>
-    {% for category, _items in groups %}
-      <option value="{{ category }}">{{ category }}</option>
-    {% endfor %}
-  </select>
 </div>
 
 <form method="post" id="settings-form">
   <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-  {% for category, items in groups %}
-    <details class="card settings-group" data-category="{{ category }}" {% if loop.first %}open{% endif %}>
-      <summary>{{ category }} <span class="group-count">({{ items|length }})</span></summary>
+  <div class="settings-workspace">
+    <nav class="settings-category-nav" aria-label="Setting categories">
+      {% for category, items in groups %}
+        <button
+          class="settings-category-button{% if loop.first %} active{% endif %}"
+          type="button"
+          data-panel="settings-panel-{{ loop.index0 }}"
+        >
+          <span>{{ category }}</span>
+          <small>{{ items|length }}</small>
+        </button>
+      {% endfor %}
+    </nav>
+    <div class="settings-category-content">
+    {% for category, items in groups %}
+      <section
+        id="settings-panel-{{ loop.index0 }}"
+        class="settings-category-panel{% if loop.first %} active{% endif %}"
+        data-category="{{ category }}"
+      >
+        <div class="settings-category-heading">
+          <h2>{{ category }}</h2>
+          <span>{{ items|length }} settings</span>
+        </div>
       <div class="settings-grid">
         {% for item in items %}
           <div class="setting" data-search="{{ item.name|lower }} {{ item.key|lower }}">
@@ -54,27 +68,43 @@
                 {% endfor %}
               </select>
             {% elif item.kind == "multi" %}
-              <input
-                class="multi-option-search"
-                type="search"
-                placeholder="Search available selections..."
-                data-target="setting-{{ item.key }}"
-                {% if running %}disabled{% endif %}
-              >
-              <select
-                id="setting-{{ item.key }}"
-                name="setting__{{ item.key }}"
-                multiple
-                size="{{ [item.choices|length, 8]|min }}"
-                {% if running %}disabled{% endif %}
-              >
-                {% for label, choice_value in item.choices %}
-                  <option value="{{ choice_value }}" {% if choice_value in item.selected %}selected{% endif %}>
-                    {{ label }}{% if label != choice_value %} ({{ choice_value }}){% endif %}
-                  </option>
-                {% endfor %}
-              </select>
-              <small>Hold Ctrl/Cmd to select multiple values.</small>
+              <input type="hidden" name="present__{{ item.key }}" value="1">
+              <details class="multi-picker" id="setting-{{ item.key }}">
+                <summary>
+                  <span class="multi-picker-summary">
+                    {{ item.selected|length ~ " selected" if item.selected else "None selected" }}
+                  </span>
+                  <span aria-hidden="true">▾</span>
+                </summary>
+                <div class="multi-picker-panel">
+                  <input
+                    class="multi-option-search"
+                    type="search"
+                    placeholder="Search by name or ID..."
+                    {% if running %}disabled{% endif %}
+                  >
+                  <div class="multi-picker-toolbar">
+                    <span class="multi-picker-count">{{ item.selected|length }} selected</span>
+                    <button class="secondary compact multi-picker-clear" type="button" {% if running %}disabled{% endif %}>Clear all</button>
+                  </div>
+                  <div class="multi-picker-options">
+                    {% for label, choice_value in item.choices %}
+                      <label class="multi-picker-option" data-search="{{ label|lower }} {{ choice_value|lower }}">
+                        <input
+                          name="setting__{{ item.key }}"
+                          type="checkbox"
+                          value="{{ choice_value }}"
+                          data-label="{{ label }}"
+                          {% if choice_value in item.selected %}checked{% endif %}
+                          {% if running %}disabled{% endif %}
+                        >
+                        <span>{{ label }}</span>
+                        {% if label != choice_value %}<code>{{ choice_value }}</code>{% endif %}
+                      </label>
+                    {% endfor %}
+                  </div>
+                </div>
+              </details>
             {% elif item.kind in ("integer", "decimal") %}
               <input
                 id="setting-{{ item.key }}"
@@ -115,9 +145,11 @@
           </div>
         {% endfor %}
       </div>
-    </details>
-  {% endfor %}
-  <p id="no-settings-results" class="card empty" hidden>No settings match your search.</p>
+      </section>
+    {% endfor %}
+      <p id="no-settings-results" class="card empty" hidden>No settings match your search.</p>
+    </div>
+  </div>
   <div class="sticky-actions">
     <button type="submit" {% if running or not groups %}disabled{% endif %}>Save settings</button>
   </div>
@@ -136,30 +168,52 @@
 {% block scripts %}
 <script>
 const search = document.getElementById("settings-search");
-const category = document.getElementById("category-filter");
-const groups = [...document.querySelectorAll(".settings-group")];
+const categoryButtons = [...document.querySelectorAll(".settings-category-button")];
+const categoryPanels = [...document.querySelectorAll(".settings-category-panel")];
+const categoryNav = document.querySelector(".settings-category-nav");
+let activePanelId = categoryButtons[0]?.dataset.panel;
+
+function selectCategory(panelId) {
+  activePanelId = panelId;
+  for (const button of categoryButtons) {
+    button.classList.toggle("active", button.dataset.panel === panelId);
+  }
+  for (const panel of categoryPanels) {
+    panel.classList.toggle("active", panel.id === panelId);
+  }
+}
+
+for (const button of categoryButtons) {
+  button.addEventListener("click", () => {
+    if (search.value) {
+      search.value = "";
+      filterSettings();
+    }
+    selectCategory(button.dataset.panel);
+  });
+}
 
 function filterSettings() {
   const query = search.value.trim().toLowerCase();
-  const selectedCategory = category.value;
   let visibleTotal = 0;
-  for (const group of groups) {
-    const categoryMatches = !selectedCategory || group.dataset.category === selectedCategory;
-    let visibleInGroup = 0;
-    for (const setting of group.querySelectorAll(".setting")) {
-      const visible = categoryMatches && (!query || setting.dataset.search.includes(query));
+  categoryNav.classList.toggle("searching", Boolean(query));
+  for (const panel of categoryPanels) {
+    let visibleInPanel = 0;
+    for (const setting of panel.querySelectorAll(".setting")) {
+      const visible = !query || setting.dataset.search.includes(query);
       setting.hidden = !visible;
-      if (visible) visibleInGroup++;
+      if (visible) visibleInPanel++;
     }
-    group.hidden = visibleInGroup === 0;
-    group.querySelector(".group-count").textContent = `(${visibleInGroup})`;
-    if ((query || selectedCategory) && visibleInGroup) group.open = true;
-    visibleTotal += visibleInGroup;
+    if (query) {
+      panel.classList.toggle("active", visibleInPanel > 0);
+    } else {
+      panel.classList.toggle("active", panel.id === activePanelId);
+    }
+    visibleTotal += visibleInPanel;
   }
   document.getElementById("no-settings-results").hidden = visibleTotal !== 0;
 }
 search.addEventListener("input", filterSettings);
-category.addEventListener("change", filterSettings);
 
 for (const slider of document.querySelectorAll(".setting-range")) {
   const number = document.getElementById(slider.dataset.target);
@@ -172,14 +226,36 @@ for (const slider of document.querySelectorAll(".setting-range")) {
   });
 }
 
-for (const optionSearch of document.querySelectorAll(".multi-option-search")) {
-  const select = document.getElementById(optionSearch.dataset.target);
+function updateMultiPicker(picker) {
+  const checked = [...picker.querySelectorAll('.multi-picker-option input:checked')];
+  const summary = picker.querySelector(".multi-picker-summary");
+  const count = picker.querySelector(".multi-picker-count");
+  count.textContent = `${checked.length} selected`;
+  if (!checked.length) {
+    summary.textContent = "None selected";
+  } else if (checked.length <= 2) {
+    summary.textContent = checked.map(input => input.dataset.label).join(", ");
+  } else {
+    summary.textContent = `${checked.length} selected`;
+  }
+}
+
+for (const picker of document.querySelectorAll(".multi-picker")) {
+  const optionSearch = picker.querySelector(".multi-option-search");
   optionSearch.addEventListener("input", () => {
     const query = optionSearch.value.trim().toLowerCase();
-    for (const option of select.options) {
-      option.hidden = Boolean(query) && !option.text.toLowerCase().includes(query);
+    for (const option of picker.querySelectorAll(".multi-picker-option")) {
+      option.hidden = Boolean(query) && !option.dataset.search.includes(query);
     }
   });
+  picker.addEventListener("change", () => updateMultiPicker(picker));
+  picker.querySelector(".multi-picker-clear").addEventListener("click", () => {
+    for (const input of picker.querySelectorAll(".multi-picker-option input")) {
+      input.checked = false;
+    }
+    updateMultiPicker(picker);
+  });
+  updateMultiPicker(picker);
 }
 </script>
 {% endblock %}

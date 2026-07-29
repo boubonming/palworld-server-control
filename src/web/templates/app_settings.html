@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}App Settings · Palworld Server Control{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <h1>App Settings</h1>
+    <p>Configure controller behavior and access to this web interface.</p>
+  </div>
+</div>
+
+<form method="post" class="settings-form-stack">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+  <section class="card">
+    <h2>Idle shutdown</h2>
+    <p>Automatically save and stop the Palworld server after it remains empty.</p>
+    <div class="preference-row">
+      <label class="check"><input type="checkbox" name="auto_shutdown_enabled" {% if config.get('auto_shutdown_enabled', true) %}checked{% endif %}> Enable idle shutdown</label>
+      <label class="compact-number">Empty for
+        <input name="auto_shutdown_empty_minutes" type="number" min="1" max="1440" value="{{ config.get('auto_shutdown_empty_minutes', 5) }}">
+        minutes
+      </label>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Web access</h2>
+    <p>Change the password used to sign in to this controller.</p>
+    <label for="new_web_password">New password</label>
+    <input id="new_web_password" name="new_web_password" type="password" minlength="10" placeholder="Leave blank to keep the current password" autocomplete="new-password">
+    <small class="helper-text">Use at least 10 characters.</small>
+  </section>
+
+  <button type="submit">Save App Settings</button>
+</form>
+{% endblock %}

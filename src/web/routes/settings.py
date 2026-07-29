@@ -5,7 +5,12 @@ import os
 from flask import flash, redirect, render_template, request, url_for
 
 from core import config_manager
-from core.setting_categories import SETTING_CATEGORIES
+from core.setting_categories import (
+    CATEGORY_ORDER,
+    CATEGORY_SETTING_PRIORITY,
+    SETTING_CATEGORIES,
+    SettingCategory,
+)
 from core.setting_editor import (
     describe_setting,
     serialize_multi_values,
@@ -25,7 +30,7 @@ def _submitted_updates(current_values):
                     "True" if request.form.get(field_name) == "True" else "False"
                 )
         elif editor["kind"] == "multi":
-            if field_name in request.form:
+            if f"present__{key}" in request.form:
                 updates[key] = serialize_multi_values(
                     request.form.getlist(field_name),
                     editor["quote_values"],
@@ -36,20 +41,36 @@ def _submitted_updates(current_values):
 
 
 def _setting_groups(values):
-    groups = {}
+    groups = {category: [] for category in CATEGORY_ORDER}
     for key, value in values.items():
-        category = SETTING_CATEGORIES.get(key)
-        category_name = category.value if category else "Other"
-        groups.setdefault(category_name, []).append({
+        category = SETTING_CATEGORIES.get(
+            key,
+            SettingCategory.ADVANCED_NEW_SETTINGS,
+        )
+        groups[category].append({
             "key": key,
             "name": setting_display_name(key),
             "value": value,
             "description": get_setting_tooltip(key),
             **describe_setting(key, value),
         })
-    for items in groups.values():
-        items.sort(key=lambda item: item["name"].lower())
-    return sorted(groups.items())
+    ordered_groups = []
+    for category in CATEGORY_ORDER:
+        items = groups[category]
+        if not items:
+            continue
+        priority = {
+            key: index
+            for index, key in enumerate(
+                CATEGORY_SETTING_PRIORITY.get(category, ())
+            )
+        }
+        items.sort(key=lambda item: (
+            priority.get(item["key"], len(priority)),
+            item["name"].casefold(),
+        ))
+        ordered_groups.append((category.value, items))
+    return ordered_groups
 
 
 def register_settings_routes(app, runtime):

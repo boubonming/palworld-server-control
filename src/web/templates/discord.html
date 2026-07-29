@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}Discord · Palworld Server Control{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <h1>Discord</h1>
+    <p>Connect the bot and choose exactly where server commands are accepted.</p>
+  </div>
+</div>
+
+<section class="card discord-status-card">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Bot status</span>
+      <h2 id="discord-status">{{ discord_status }}</h2>
+    </div>
+    <span id="discord-state" class="status {{ 'running' if discord_state == 'running' else 'starting' if discord_state in ('starting', 'stopping') else 'stopped' }}">{{ discord_state|capitalize }}</span>
+  </div>
+  <div class="actions">
+    {% for action in ("start", "stop", "restart") %}
+      <form method="post" action="{{ url_for('discord_action', action=action) }}">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <button
+          type="submit"
+          class="{{ 'danger' if action == 'stop' else 'secondary' if action == 'restart' else '' }}"
+          {% if action == 'start' and discord_state != 'stopped' %}disabled{% endif %}
+          {% if action == 'stop' and discord_state not in ('starting', 'running') %}disabled{% endif %}
+          {% if action == 'restart' and discord_state != 'running' %}disabled{% endif %}
+        >{{ action|capitalize }}</button>
+      </form>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="card">
+  <div class="section-heading">
+    <div>
+      <h2>Bot connection</h2>
+      <p>The token identifies the Discord bot account used by this controller.</p>
+    </div>
+  </div>
+  <form method="post" action="{{ url_for('save_discord_settings') }}" class="compact-form">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <label for="discord_bot_token">Bot token</label>
+    <input id="discord_bot_token" name="discord_bot_token" type="password" value="{{ config.get('discord_bot_token', '') }}" autocomplete="off">
+    <label class="check"><input type="checkbox" name="discord_bot_auto_start" {% if config.get('discord_bot_auto_start', true) %}checked{% endif %}> Start automatically and retry temporary connection failures</label>
+    <button type="submit">Save Discord settings</button>
+  </form>
+</section>
+
+<section class="card">
+  <div class="section-heading channel-heading">
+    <div>
+      <h2>Control channels</h2>
+      <p>Commands are accepted only in these channels. Messages elsewhere are ignored.</p>
+    </div>
+    <button id="add-channel" class="secondary compact" type="button">Add channel</button>
+  </div>
+  <p class="helper-text">To copy an ID: enable Discord Developer Mode, right-click a channel, then select <strong>Copy Channel ID</strong>.</p>
+
+  <form method="post" action="{{ url_for('save_discord_channels') }}">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <div id="channel-list" class="channel-list">
+      {% for channel_id in config.get('palworld_channel_ids', []) %}
+        {% set resolved_name = discord_channels.get(channel_id|string, '') %}
+        <div class="channel-card">
+          <div class="channel-identity">
+            <span class="channel-dot {{ 'resolved' if resolved_name else 'unresolved' }}"></span>
+            <div>
+              <strong class="channel-name">{{ resolved_name or "Channel not resolved yet" }}</strong>
+              <small class="channel-state">{{ "Bot can access this channel" if resolved_name else "Save, then restart the bot to verify access" }}</small>
+            </div>
+          </div>
+          <div class="channel-editor">
+            <label>Channel ID
+              <input name="palworld_channel_ids" inputmode="numeric" pattern="[0-9]+" value="{{ channel_id }}" placeholder="123456789012345678" required>
+            </label>
+            <button class="secondary compact remove-channel" type="button">Remove</button>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+    <div id="channel-empty" class="empty-state" {% if config.get('palworld_channel_ids', []) %}hidden{% endif %}>
+      <strong>No control channels configured</strong>
+      <p>Add a channel before using Discord commands such as <code>!start</code> and <code>!stop</code>.</p>
+    </div>
+    <button type="submit">Save channels</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Recent Discord activity</h2>
+  {% if discord_activity %}
+    <pre id="discord-activity" class="activity">{% for line in discord_activity %}{{ line }}
+{% endfor %}</pre>
+  {% else %}
+    <pre id="discord-activity" class="activity muted">No Discord activity recorded yet.</pre>
+  {% endif %}
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+const channelList = document.getElementById("channel-list");
+const channelEmpty = document.getElementById("channel-empty");
+
+function updateChannelEmptyState() {
+  channelEmpty.hidden = channelList.children.length !== 0;
+}
+
+function channelCard(value = "") {
+  const card = document.createElement("div");
+  card.className = "channel-card";
+  card.innerHTML = `
+    <div class="channel-identity">
+      <span class="channel-dot unresolved"></span>
+      <div>
+        <strong class="channel-name">New channel</strong>
+        <small class="channel-state">Save, then restart the bot to verify access</small>
+      </div>
+    </div>
+    <div class="channel-editor">
+      <label>Channel ID
+        <input name="palworld_channel_ids" inputmode="numeric" pattern="[0-9]+" placeholder="123456789012345678" required>
+      </label>
+      <button class="secondary compact remove-channel" type="button">Remove</button>
+    </div>`;
+  card.querySelector("input").value = value;
+  return card;
+}
+
+document.getElementById("add-channel").addEventListener("click", () => {
+  const card = channelCard();
+  channelList.append(card);
+  updateChannelEmptyState();
+  card.querySelector("input").focus();
+});
+channelList.addEventListener("click", event => {
+  if (event.target.classList.contains("remove-channel")) {
+    event.target.closest(".channel-card").remove();
+    updateChannelEmptyState();
+  }
+});
+
+setInterval(async () => {
+  const response = await fetch("{{ url_for('discord_status_api') }}");
+  if (!response.ok) return;
+  const data = await response.json();
+  document.getElementById("discord-status").textContent = data.display;
+  const state = document.getElementById("discord-state");
+  state.textContent = data.state.charAt(0).toUpperCase() + data.state.slice(1);
+  state.className = "status " + (data.state === "running" ? "running" : data.state === "stopped" ? "stopped" : "starting");
+  document.getElementById("discord-activity").textContent = data.activity.length ? data.activity.join("\n") : "No Discord activity recorded yet.";
+  for (const card of channelList.querySelectorAll(".channel-card")) {
+    const id = card.querySelector("input").value.trim();
+    const resolvedName = data.channels[id];
+    card.querySelector(".channel-name").textContent = resolvedName || (id ? "Channel not resolved yet" : "New channel");
+    card.querySelector(".channel-state").textContent = resolvedName ? "Bot can access this channel" : "Save, then restart the bot to verify access";
+    card.querySelector(".channel-dot").className = "channel-dot " + (resolvedName ? "resolved" : "unresolved");
+  }
+}, 5000);
+</script>
+{% endblock %}

@@ -110,7 +110,3 @@ def register_server_routes(app, runtime):
             except (OSError, RuntimeError, ValueError) as exc:
                 flash(f"Setup failed: {exc}", "error")
         return render_template("setup.html", config=config_manager.CONFIG)
-
-    @app.get("/activity")
-    def activity():
-        return render_template("activity.html", activity=runtime.activity())

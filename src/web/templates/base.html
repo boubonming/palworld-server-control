@@ -12,9 +12,9 @@
     {% if session.get("authenticated") %}
       <nav>
         <a href="{{ url_for('dashboard') }}">Server</a>
-        <a href="{{ url_for('settings') }}">Settings</a>
-        <a href="{{ url_for('controller_settings') }}">Controller</a>
-        <a href="{{ url_for('activity') }}">Activity</a>
+        <a href="{{ url_for('settings') }}">Server Settings</a>
+        <a href="{{ url_for('discord_settings') }}">Discord</a>
+        <a href="{{ url_for('app_settings') }}">App Settings</a>
         <a href="{{ url_for('setup') }}">Docker setup</a>
       </nav>
       <form method="post" action="{{ url_for('logout') }}">
