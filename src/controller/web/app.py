@@ -6,7 +6,7 @@ import secrets
 from flask import Flask, abort, redirect, request, session, url_for
 
 from core import config_manager
-from web.routes import (
+from controller.web.routes import (
     register_app_settings_routes,
     register_auth_routes,
     register_discord_routes,

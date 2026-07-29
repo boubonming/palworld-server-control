@@ -2,8 +2,8 @@ import unittest
 from unittest.mock import Mock, patch
 
 from shared.status import ServerState, ServerStatus
-from web.app import create_web_app
-from web.routes.settings import _setting_groups
+from controller.web.app import create_web_app
+from controller.web.routes.settings import _setting_groups
 
 
 class WebFeatureTests(unittest.TestCase):
@@ -23,7 +23,7 @@ class WebFeatureTests(unittest.TestCase):
             "server_backend": "socket_proxy",
             "socket_proxy_configured": True,
         }
-        self.config_patch = patch("web.app.config_manager.CONFIG", self.config)
+        self.config_patch = patch("controller.web.app.config_manager.CONFIG", self.config)
         self.config_patch.start()
         self.addCleanup(self.config_patch.stop)
         self.app = create_web_app(self.runtime)
@@ -34,7 +34,7 @@ class WebFeatureTests(unittest.TestCase):
 
     def test_status_api_reports_docker_starting_state(self):
         with patch(
-            "web.routes.server.server_readiness.get_status",
+            "controller.web.routes.server.server_readiness.get_status",
             return_value=ServerStatus(ServerState.STARTING),
         ):
             response = self.client.get("/api/status")
@@ -51,15 +51,15 @@ class WebFeatureTests(unittest.TestCase):
         }
         with (
             patch(
-                "web.app.config_manager.get_palworld_editor_settings",
+                "controller.web.app.config_manager.get_palworld_editor_settings",
                 return_value=values,
             ),
             patch(
-                "web.app.config_manager.is_server_process_running",
+                "controller.web.app.config_manager.is_server_process_running",
                 return_value=False,
             ),
             patch(
-                "web.app.config_manager.get_palworld_backup_path",
+                "controller.web.app.config_manager.get_palworld_backup_path",
                 return_value="",
             ),
         ):
@@ -81,15 +81,15 @@ class WebFeatureTests(unittest.TestCase):
         }
         with (
             patch(
-                "web.app.config_manager.get_palworld_editor_settings",
+                "controller.web.app.config_manager.get_palworld_editor_settings",
                 return_value=values,
             ),
             patch(
-                "web.app.config_manager.is_server_process_running",
+                "controller.web.app.config_manager.is_server_process_running",
                 return_value=False,
             ),
             patch(
-                "web.app.config_manager.update_palworld_ini_settings",
+                "controller.web.app.config_manager.update_palworld_ini_settings",
             ) as update,
         ):
             response = self.client.post(
@@ -114,15 +114,15 @@ class WebFeatureTests(unittest.TestCase):
         values = {"CrossplayPlatforms": "(Steam,Xbox)"}
         with (
             patch(
-                "web.app.config_manager.get_palworld_editor_settings",
+                "controller.web.app.config_manager.get_palworld_editor_settings",
                 return_value=values,
             ),
             patch(
-                "web.app.config_manager.is_server_process_running",
+                "controller.web.app.config_manager.is_server_process_running",
                 return_value=False,
             ),
             patch(
-                "web.app.config_manager.update_palworld_ini_settings",
+                "controller.web.app.config_manager.update_palworld_ini_settings",
             ) as update,
         ):
             self.client.post(
@@ -173,7 +173,7 @@ class WebFeatureTests(unittest.TestCase):
 
     def test_channel_form_saves_only_valid_unique_ids(self):
         self.config["palworld_channel_ids"] = ["old"]
-        with patch("web.routes.discord.config_manager.save_config") as save:
+        with patch("controller.web.routes.discord.config_manager.save_config") as save:
             response = self.client.post(
                 "/discord/channels",
                 data={
@@ -215,15 +215,15 @@ class WebFeatureTests(unittest.TestCase):
         }
         with (
             patch(
-                "web.app.config_manager.get_palworld_editor_settings",
+                "controller.web.app.config_manager.get_palworld_editor_settings",
                 return_value=values,
             ),
             patch(
-                "web.app.config_manager.is_server_process_running",
+                "controller.web.app.config_manager.is_server_process_running",
                 return_value=False,
             ),
             patch(
-                "web.app.config_manager.get_palworld_backup_path",
+                "controller.web.app.config_manager.get_palworld_backup_path",
                 return_value="",
             ),
         ):

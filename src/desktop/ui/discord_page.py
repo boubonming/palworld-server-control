@@ -21,9 +21,9 @@ from PySide6.QtWidgets import (
 
 from core import config_manager
 from integrations import discord_bot as bot_module
-from ui.page import Page
-from ui.password_field import PasswordLineEdit
-from ui.qt_bridges import discord_signals
+from desktop.ui.page import Page
+from desktop.ui.password_field import PasswordLineEdit
+from desktop.ui.qt_bridges import discord_signals
 from shared.discord_activity import normalize_channel_id
 from shared.status import status_stylesheet
 

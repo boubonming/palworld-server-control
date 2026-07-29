@@ -78,12 +78,12 @@ Application configuration is stored in `/data/config.json` in the controller con
 
 ```text
 src/
-  main.py                 Application entry point
-  app.py                  Main window and lifecycle orchestration
+  main.py                 Desktop compatibility entry point
+  server_main.py          Controller compatibility entry point
+  desktop/                PySide6 app, pages, and desktop lifecycle
+  controller/             Headless runtime and web interface
   core/                   Configuration, API, INI, and Palworld domain logic
   integrations/           Discord bot lifecycle and commands
-  ui/                     PySide6 pages, widgets, and desktop event bridges
-  web/                    Linux controller web interface and runtime
   shared/                 Toolkit-neutral events and cross-cutting helpers
 ```
 

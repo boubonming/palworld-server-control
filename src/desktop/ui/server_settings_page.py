@@ -43,10 +43,10 @@ from core.setting_metadata import (
     get_setting_tooltip,
     get_technology_options,
 )
-from ui.page import Page
-from ui.multi_select_field import MultiSelectField
-from ui.numeric_setting_field import NumericSettingField
-from ui.password_field import PasswordLineEdit
+from desktop.ui.page import Page
+from desktop.ui.multi_select_field import MultiSelectField
+from desktop.ui.numeric_setting_field import NumericSettingField
+from desktop.ui.password_field import PasswordLineEdit
 from shared.status import ServerState
 
 

@@ -5,7 +5,7 @@ from core import server_readiness
 from core.docker_proxy_client import DockerProxyClient, DockerProxyError
 from core.server_backends.socket_proxy import SocketProxyBackend
 from shared.status import ServerState, ServerStatus
-from web.app import create_web_app
+from controller.web.app import create_web_app
 
 
 class DockerProxyClientTests(unittest.TestCase):
@@ -152,7 +152,7 @@ class HealthEndpointTests(unittest.TestCase):
     def test_health_endpoint_does_not_require_authentication(self):
         runtime = Mock()
 
-        with patch("web.app.config_manager.CONFIG", {"web_secret_key": "test-secret"}):
+        with patch("controller.web.app.config_manager.CONFIG", {"web_secret_key": "test-secret"}):
             app = create_web_app(runtime)
             response = app.test_client().get("/health")
 

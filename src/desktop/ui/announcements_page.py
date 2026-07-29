@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QPlainTextEdit, QPushButton
 
 from core import api_client, config_manager
 from shared.status import ServerState
-from ui.page import Page
+from desktop.ui.page import Page
 
 
 class AnnouncementsPage(Page):

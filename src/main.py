@@ -1,6 +1,6 @@
-"""Application entry point."""
+"""Desktop application entry point."""
 
-from app import main
+from desktop.app import main
 
 
 if __name__ == "__main__":

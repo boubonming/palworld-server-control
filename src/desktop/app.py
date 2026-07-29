@@ -27,8 +27,8 @@ from PySide6.QtWidgets import QStyle
 
 from core import config_manager
 from integrations import discord_bot
-from ui.qt_bridges import QtAutoShutdownMonitor, discord_signals
-from ui.pages import (
+from desktop.ui.qt_bridges import QtAutoShutdownMonitor, discord_signals
+from desktop.ui.pages import (
     AnnouncementsPage,
     AppSettingsPage,
     DiscordPage,
@@ -39,7 +39,11 @@ from shared.status import ServerState, ServerStatus
 
 
 def get_app_icon_path():
-    base_dir = getattr(sys, "_MEIPASS", os.path.dirname(os.path.dirname(__file__)))
+    base_dir = getattr(
+        sys,
+        "_MEIPASS",
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+    )
     return os.path.join(base_dir, "assets", "app_icon.ico")
 
 

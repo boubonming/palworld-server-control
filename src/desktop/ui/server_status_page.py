@@ -5,7 +5,7 @@ from PySide6.QtCore import QTimer, Signal
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPlainTextEdit, QPushButton
 
 from core import config_manager, server_readiness
-from ui.page import Page
+from desktop.ui.page import Page
 from shared.status import ServerState, ServerStatus, status_stylesheet
 
 
