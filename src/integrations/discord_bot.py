@@ -2,7 +2,7 @@ import asyncio
 import threading
 import discord
 from discord.ext import commands
-from core import config_manager
+from core import config_manager, server_readiness
 from shared.discord_activity import channel_context, command_activity, normalize_channel_id
 from shared.events import EventSignal
 from shared.status import ServerState, ServerStatus
@@ -21,6 +21,15 @@ signals = BotSignals()
 
 intents = discord.Intents.default()
 intents.message_content = True
+
+
+def should_retry_connection(error):
+    return not isinstance(error, discord.LoginFailure)
+
+
+def retry_delay(attempt):
+    return min(5 * (2 ** max(0, attempt)), 60)
+
 
 def create_bot():
     class ManagedBot(commands.Bot):
@@ -47,15 +56,20 @@ def create_bot():
                 "Discord bot online, but Discord commands are unavailable"
             )
 
-        if config_manager.is_server_process_running():
+        server_status = server_readiness.get_status()
+        if server_status.state is ServerState.RUNNING:
             await bot_instance.change_presence(
                 status=discord.Status.online,
                 activity=discord.Game(name="Palworld Server (ONLINE)"),
             )
-            signals.status_changed.emit(ServerStatus(ServerState.RUNNING))
+        elif server_status.state is ServerState.STARTING:
+            await bot_instance.change_presence(
+                status=discord.Status.online,
+                activity=discord.Game(name="Palworld Starting"),
+            )
         else:
             await bot_instance.change_presence(status=discord.Status.idle, activity=None)
-            signals.status_changed.emit(ServerStatus(ServerState.STOPPED))
+        signals.status_changed.emit(server_status)
 
         for raw_channel_id in config_manager.CONFIG.get("palworld_channel_ids", []):
             channel_id = normalize_channel_id(raw_channel_id)
@@ -108,6 +122,7 @@ class DiscordBotManager:
         self._state = "stopped"
         self._stop_requested = False
         self._loop_ready = threading.Event()
+        self._retry_wait = threading.Event()
 
     @property
     def is_running(self):
@@ -119,7 +134,7 @@ class DiscordBotManager:
         with self._lock:
             return self._state
 
-    def start(self, token: str):
+    def start(self, token: str, retry=False):
         if not token:
             signals.bot_status_changed.emit("Discord bot cannot start: token is missing")
             return False
@@ -129,42 +144,83 @@ class DiscordBotManager:
             self._state = "starting"
             self._stop_requested = False
             self._loop_ready.clear()
+            self._retry_wait.clear()
             global bot
-            bot = create_bot()
-            self.thread = threading.Thread(target=self._run, args=(token, bot), daemon=True)
+            bot = None
+            self.thread = threading.Thread(
+                target=self._run,
+                args=(token, retry),
+                daemon=True,
+            )
             self.thread.start()
         signals.bot_status_changed.emit("Connecting Discord bot...")
         return True
 
-    def _run(self, token: str, bot_instance):
-        self.loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self.loop)
-        self._loop_ready.set()
+    def _run(self, token: str, retry):
+        attempt = 0
+        while True:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            bot_instance = create_bot()
+            global bot
+            with self._lock:
+                if self._stop_requested:
+                    loop.close()
+                    break
+                bot = bot_instance
+                self.loop = loop
+                self._state = "starting"
+                self._loop_ready.set()
+
+            retry_connection = False
+            try:
+                loop.run_until_complete(bot_instance.start(token))
+            except Exception as exc:
+                print(f"Discord bot stopped: {exc}")
+                with self._lock:
+                    stop_requested = self._stop_requested
+                retry_connection = (
+                    retry
+                    and not stop_requested
+                    and should_retry_connection(exc)
+                )
+                if retry_connection:
+                    delay = retry_delay(attempt)
+                    signals.bot_status_changed.emit(
+                        f"Discord connection failed; retrying in {delay} seconds..."
+                    )
+                elif not stop_requested:
+                    signals.bot_status_changed.emit(
+                        "Discord bot failed to connect. Check the token and connection."
+                    )
+            finally:
+                if not bot_instance.is_closed():
+                    try:
+                        loop.run_until_complete(bot_instance.close())
+                    except Exception:
+                        pass
+                loop.close()
+                with self._lock:
+                    if self.loop is loop:
+                        self.loop = None
+
+            if not retry_connection:
+                break
+            if self._retry_wait.wait(retry_delay(attempt)):
+                break
+            attempt += 1
+            self._loop_ready.clear()
+            signals.bot_status_changed.emit("Retrying Discord connection...")
+
         with self._lock:
             stop_requested = self._stop_requested
+            self.loop = None
+            self._state = "stopped"
+            self._stop_requested = False
+            self._loop_ready.clear()
+            self._retry_wait.clear()
         if stop_requested:
-            self.loop.close()
-            with self._lock:
-                self.loop = None
-                self._state = "stopped"
-                self._stop_requested = False
             signals.bot_status_changed.emit("Discord bot stopped")
-            return
-        try:
-            self.loop.run_until_complete(bot_instance.start(token))
-        except Exception as exc:
-            print(f"Discord bot stopped: {exc}")
-            if not self._stop_requested:
-                signals.bot_status_changed.emit("Discord bot failed to connect. Check the token and connection.")
-        finally:
-            self.loop.close()
-            with self._lock:
-                self.loop = None
-                self._state = "stopped"
-                stop_requested = self._stop_requested
-                self._stop_requested = False
-            if stop_requested:
-                signals.bot_status_changed.emit("Discord bot stopped")
 
     def stop(self):
         with self._lock:
@@ -173,6 +229,7 @@ class DiscordBotManager:
             self._state = "stopping"
             self._stop_requested = True
             loop = self.loop
+            self._retry_wait.set()
         signals.bot_status_changed.emit("Stopping Discord bot...")
         if loop:
             threading.Thread(target=self._close_bot, args=(loop, bot), daemon=True).start()
@@ -301,7 +358,7 @@ discord_manager = DiscordBotManager()
 
 def run_discord_bot(token: str):
     """Fires up the async bot loops inside the background thread."""
-    discord_manager.start(token)
+    discord_manager.start(token, retry=True)
 
 
 def notify_idle_shutdown(minutes, launch_source):

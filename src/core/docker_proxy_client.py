@@ -54,6 +54,10 @@ class DockerProxyClient:
                 return container
         return None
 
+    def inspect_container(self, container_id):
+        encoded = urllib.parse.quote(str(container_id), safe="")
+        return self._request(f"containers/{encoded}/json") or {}
+
     def start_container(self, container_id):
         encoded = urllib.parse.quote(str(container_id), safe="")
         self._request(f"containers/{encoded}/start", method="POST")

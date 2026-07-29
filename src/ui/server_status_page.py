@@ -4,7 +4,7 @@ import urllib.error
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPlainTextEdit, QPushButton
 
-from core import config_manager
+from core import config_manager, server_readiness
 from ui.page import Page
 from shared.status import ServerState, ServerStatus, status_stylesheet
 
@@ -44,15 +44,14 @@ class ServerStatusPage(Page):
         self._status_updated_at = None
         self._current_status = None
         self._process_poll_timer = QTimer(self)
-        self._process_poll_timer.setInterval(250)
+        self._process_poll_timer.setInterval(2000)
         self._process_poll_timer.timeout.connect(self._poll_process_state)
         self.refresh(log_status=False)
 
     def refresh(self, log_status=False):
         directory = config_manager.CONFIG.get("palworld_dir", "Not configured")
         self.directory_label.setText(f"Server directory:\n{directory}")
-        state = ServerState.RUNNING if config_manager.is_server_process_running() else ServerState.STOPPED
-        self.update_status(ServerStatus(state), log_status=log_status)
+        self.update_status(server_readiness.get_status(), log_status=log_status)
 
     def update_status(self, status, log_status=True):
         status_changed = status.display != self._last_logged_status
@@ -105,10 +104,14 @@ class ServerStatusPage(Page):
         if self._current_status is None:
             return
 
-        running = config_manager.is_server_process_running()
-        if self._current_status.state is ServerState.STARTING and running:
+        status = server_readiness.get_status()
+        if self._current_status.state is ServerState.STARTING and status.state is ServerState.RUNNING:
             self._process_poll_timer.stop()
-            self.update_status(ServerStatus(ServerState.RUNNING))
-        elif self._current_status.state is ServerState.STOPPING and not running:
+            self.update_status(status)
+        elif self._current_status.state is ServerState.STARTING and status.state is ServerState.STOPPED:
             self._process_poll_timer.stop()
-            self.update_status(ServerStatus(ServerState.STOPPED))
+            self.update_status(status)
+            self.log.appendPlainText("Server stopped before becoming ready")
+        elif self._current_status.state is ServerState.STOPPING and status.state is ServerState.STOPPED:
+            self._process_poll_timer.stop()
+            self.update_status(status)

@@ -2,7 +2,7 @@
 
 import threading
 
-from core import api_client, config_manager
+from core import api_client, config_manager, server_readiness
 from shared.events import EventSignal
 from shared.status import ServerState, ServerStatus
 
@@ -53,8 +53,8 @@ class AutoShutdownMonitor:
             self.check_once()
 
     def check_once(self):
-        process_id = config_manager.get_server_process_id()
-        if process_id is None:
+        server_status = server_readiness.get_status()
+        if server_status.state is ServerState.STOPPED:
             self.empty_minutes_counter = 0
             if self._server_was_running:
                 self._server_was_running = False
@@ -64,7 +64,11 @@ class AutoShutdownMonitor:
                 config_manager.clear_server_launch_source()
                 self.status_changed.emit(ServerStatus(ServerState.STOPPED))
             return
+        if server_status.state is ServerState.STARTING:
+            self.status_changed.emit(server_status)
+            return
 
+        process_id = config_manager.get_server_process_id()
         if process_id != self._server_process_id:
             self.empty_minutes_counter = 0
             self._server_process_id = process_id

@@ -4,42 +4,182 @@
 <div class="page-heading">
   <div>
     <h1>Server settings</h1>
-    <p>Settings are written directly to the mounted PalWorldSettings.ini while the container is stopped.</p>
+    <p>Search and edit the mounted PalWorldSettings.ini while the container is stopped.</p>
   </div>
 </div>
 {% if running %}
   <div class="flash error">Stop the server before editing settings.</div>
 {% endif %}
-<form method="post">
+
+<div class="settings-toolbar card">
+  <label for="settings-search">Search settings</label>
+  <input id="settings-search" type="search" placeholder="Search by setting name or key...">
+  <label for="category-filter">Category</label>
+  <select id="category-filter">
+    <option value="">All categories</option>
+    {% for category, _items in groups %}
+      <option value="{{ category }}">{{ category }}</option>
+    {% endfor %}
+  </select>
+</div>
+
+<form method="post" id="settings-form">
   <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
   {% for category, items in groups %}
-    <details class="card settings-group" {% if loop.first %}open{% endif %}>
-      <summary>{{ category }}</summary>
+    <details class="card settings-group" data-category="{{ category }}" {% if loop.first %}open{% endif %}>
+      <summary>{{ category }} <span class="group-count">({{ items|length }})</span></summary>
       <div class="settings-grid">
         {% for item in items %}
-          <div class="setting">
+          <div class="setting" data-search="{{ item.name|lower }} {{ item.key|lower }}">
             <label for="setting-{{ item.key }}">{{ item.name }}</label>
-            <input
-              id="setting-{{ item.key }}"
-              name="setting__{{ item.key }}"
-              value="{{ item.value }}"
-              type="{{ 'password' if item.secret else 'text' }}"
-              {% if running %}disabled{% endif %}
-            >
+            <code>{{ item.key }}</code>
+
+            {% if item.kind == "boolean" %}
+              <input type="hidden" name="present__{{ item.key }}" value="1">
+              <label class="check setting-check">
+                <input
+                  id="setting-{{ item.key }}"
+                  name="setting__{{ item.key }}"
+                  type="checkbox"
+                  value="True"
+                  {% if item.checked %}checked{% endif %}
+                  {% if running %}disabled{% endif %}
+                >
+                Enabled
+              </label>
+            {% elif item.kind == "choice" %}
+              <select id="setting-{{ item.key }}" name="setting__{{ item.key }}" {% if running %}disabled{% endif %}>
+                {% for label, choice_value in item.choices %}
+                  <option value="{{ choice_value }}" {% if choice_value == item.value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            {% elif item.kind == "multi" %}
+              <input
+                class="multi-option-search"
+                type="search"
+                placeholder="Search available selections..."
+                data-target="setting-{{ item.key }}"
+                {% if running %}disabled{% endif %}
+              >
+              <select
+                id="setting-{{ item.key }}"
+                name="setting__{{ item.key }}"
+                multiple
+                size="{{ [item.choices|length, 8]|min }}"
+                {% if running %}disabled{% endif %}
+              >
+                {% for label, choice_value in item.choices %}
+                  <option value="{{ choice_value }}" {% if choice_value in item.selected %}selected{% endif %}>
+                    {{ label }}{% if label != choice_value %} ({{ choice_value }}){% endif %}
+                  </option>
+                {% endfor %}
+              </select>
+              <small>Hold Ctrl/Cmd to select multiple values.</small>
+            {% elif item.kind in ("integer", "decimal") %}
+              <input
+                id="setting-{{ item.key }}"
+                name="setting__{{ item.key }}"
+                value="{{ item.value }}"
+                type="number"
+                {% if item.minimum is not none %}min="{{ item.minimum }}"{% endif %}
+                {% if item.maximum is not none %}max="{{ item.maximum }}"{% endif %}
+                step="{{ '1' if item.kind == 'integer' else 'any' }}"
+                {% if running %}disabled{% endif %}
+              >
+              {% if item.slider %}
+                <div class="range-row">
+                  <span>{{ item.minimum|int }}</span>
+                  <input
+                    class="setting-range"
+                    type="range"
+                    min="{{ item.minimum|int }}"
+                    max="{{ item.maximum|int }}"
+                    value="{{ item.value }}"
+                    data-target="setting-{{ item.key }}"
+                    {% if running %}disabled{% endif %}
+                  >
+                  <span>{{ item.maximum|int }}</span>
+                </div>
+              {% endif %}
+              {% if item.hint %}<small>{{ item.hint }}</small>{% endif %}
+            {% else %}
+              <input
+                id="setting-{{ item.key }}"
+                name="setting__{{ item.key }}"
+                value="{{ item.value }}"
+                type="{{ 'password' if item.secret else 'text' }}"
+                {% if running %}disabled{% endif %}
+              >
+            {% endif %}
             <small>{{ item.description }}</small>
           </div>
         {% endfor %}
       </div>
     </details>
   {% endfor %}
+  <p id="no-settings-results" class="card empty" hidden>No settings match your search.</p>
   <div class="sticky-actions">
     <button type="submit" {% if running or not groups %}disabled{% endif %}>Save settings</button>
   </div>
 </form>
-{% if backup_exists %}
-  <form method="post" action="{{ url_for('revert_settings') }}" class="top-space">
+
+<div class="settings-secondary-actions">
+  <form method="post" action="{{ url_for('reset_settings') }}">
     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-    <button class="secondary" type="submit" {% if running %}disabled{% endif %}>Revert to previous settings</button>
+    <button class="secondary" type="submit" {% if running %}disabled{% endif %}>Reset to defaults</button>
   </form>
-{% endif %}
+  {% if backup_exists %}
+    <a class="button secondary" href="{{ url_for('revert_settings') }}">Review backup and revert</a>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const search = document.getElementById("settings-search");
+const category = document.getElementById("category-filter");
+const groups = [...document.querySelectorAll(".settings-group")];
+
+function filterSettings() {
+  const query = search.value.trim().toLowerCase();
+  const selectedCategory = category.value;
+  let visibleTotal = 0;
+  for (const group of groups) {
+    const categoryMatches = !selectedCategory || group.dataset.category === selectedCategory;
+    let visibleInGroup = 0;
+    for (const setting of group.querySelectorAll(".setting")) {
+      const visible = categoryMatches && (!query || setting.dataset.search.includes(query));
+      setting.hidden = !visible;
+      if (visible) visibleInGroup++;
+    }
+    group.hidden = visibleInGroup === 0;
+    group.querySelector(".group-count").textContent = `(${visibleInGroup})`;
+    if ((query || selectedCategory) && visibleInGroup) group.open = true;
+    visibleTotal += visibleInGroup;
+  }
+  document.getElementById("no-settings-results").hidden = visibleTotal !== 0;
+}
+search.addEventListener("input", filterSettings);
+category.addEventListener("change", filterSettings);
+
+for (const slider of document.querySelectorAll(".setting-range")) {
+  const number = document.getElementById(slider.dataset.target);
+  slider.addEventListener("input", () => number.value = slider.value);
+  number.addEventListener("input", () => {
+    const value = Number(number.value);
+    if (Number.isFinite(value) && value >= Number(slider.min) && value <= Number(slider.max)) {
+      slider.value = number.value;
+    }
+  });
+}
+
+for (const optionSearch of document.querySelectorAll(".multi-option-search")) {
+  const select = document.getElementById(optionSearch.dataset.target);
+  optionSearch.addEventListener("input", () => {
+    const query = optionSearch.value.trim().toLowerCase();
+    for (const option of select.options) {
+      option.hidden = Boolean(query) && !option.text.toLowerCase().includes(query);
+    }
+  });
+}
+</script>
 {% endblock %}

@@ -48,6 +48,17 @@ class SocketProxyBackend:
         except (OSError, RuntimeError):
             return False
 
+    def health_status(self):
+        container = self._container()
+        if not container or container.get("State") != "running":
+            return None
+        details = self.client().inspect_container(container["Id"])
+        return (
+            details.get("State", {})
+            .get("Health", {})
+            .get("Status")
+        )
+
     def start(self):
         container = self._container()
         if not container:

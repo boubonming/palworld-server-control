@@ -25,6 +25,11 @@ from PySide6.QtWidgets import (
 )
 
 from core import config_manager
+from core.setting_editor import (
+    MULTI_SELECT_CHOICES as SHARED_MULTI_SELECT_CHOICES,
+    SETTING_CHOICES as SHARED_SETTING_CHOICES,
+    setting_display_name,
+)
 from core.setting_categories import (
     CATEGORY_ICONS,
     CATEGORY_ORDER,
@@ -123,33 +128,9 @@ class ServerSettingsPage(Page):
         self.content_layout.addLayout(buttons)
         self.reload_settings()
 
-    SETTING_CHOICES = {
-        "DeathPenalty": [
-            ("No drops", "None"),
-            ("Drop items except equipment", "Item"),
-            ("Drop items and equipment", "ItemAndEquipment"),
-            ("Drop items, equipment, and team Pals", "All"),
-        ],
-        "RandomizerType": [
-            ("No randomization", "None"),
-            ("Randomize per region", "Region"),
-            ("Fully randomized", "All"),
-        ],
-        "LogFormatType": [("Text", "Text"), ("JSON", "Json")],
-    }
-
-    MULTI_SELECT_CHOICES = {
-        "CrossplayPlatforms": (
-            [(platform, platform) for platform in ("Steam", "Xbox", "PS5", "Mac")],
-            False,
-        ),
-    }
-
-    DISPLAY_NAME_REPLACEMENTS = {
-        "Hp": "HP",
-        "Pv P": "PvP",
-        "U Id": "UID",
-    }
+    SETTING_CHOICES = SHARED_SETTING_CHOICES
+    MULTI_SELECT_CHOICES = SHARED_MULTI_SELECT_CHOICES
+    display_name = staticmethod(setting_display_name)
 
     def reload_settings(self):
         settings = config_manager.get_palworld_editor_settings()
@@ -360,17 +341,6 @@ class ServerSettingsPage(Page):
     def update_save_button(self):
         dirty = hasattr(self, "_saved_values") and self.current_values() != self._saved_values
         self.save_button.setText("Save settings *" if dirty else "Save settings")
-
-    @staticmethod
-    def display_name(key):
-        if key.startswith("b") and len(key) > 1 and key[1].isupper():
-            key = key[1:]
-        key = key.replace("_", " ")
-        key = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1 \2", key)
-        key = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", key)
-        for source, replacement in ServerSettingsPage.DISPLAY_NAME_REPLACEMENTS.items():
-            key = key.replace(source, replacement)
-        return key
 
     def save(self):
         if config_manager.is_server_process_running():

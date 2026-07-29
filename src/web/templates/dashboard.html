@@ -6,8 +6,8 @@
     <p>Monitor and manage the Linux Palworld container through a restricted Socket Proxy.</p>
   </div>
   {% if configured %}
-    <span id="status" class="status {{ 'running' if running else 'stopped' }}">
-      {{ "Running" if running else "Stopped" }}
+    <span id="status" class="status {{ server_status.state.value }}">
+      {{ server_status.display }}
     </span>
   {% endif %}
 </div>
@@ -23,11 +23,11 @@
     <div class="actions">
       <form method="post" action="{{ url_for('server_action', action='start') }}">
         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" {% if running %}disabled{% endif %}>Start</button>
+        <button id="start-server" type="submit" {% if server_status.state.value != 'stopped' %}disabled{% endif %}>Start</button>
       </form>
       <form method="post" action="{{ url_for('server_action', action='stop') }}">
         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-        <button class="danger" type="submit" {% if not running %}disabled{% endif %}>Save and stop</button>
+        <button id="stop-server" class="danger" type="submit" {% if server_status.state.value == 'stopped' %}disabled{% endif %}>Save and stop</button>
       </form>
     </div>
     <dl class="details">
@@ -68,9 +68,11 @@ setInterval(async () => {
   if (!response.ok) return;
   const data = await response.json();
   const status = document.getElementById("status");
-  status.textContent = data.state === "running" ? "Running" : "Stopped";
+  status.textContent = data.display;
   status.className = "status " + data.state;
-}, 5000);
+  document.getElementById("start-server").disabled = data.state !== "stopped";
+  document.getElementById("stop-server").disabled = data.state === "stopped";
+}, 2000);
 </script>
 {% endif %}
 {% endblock %}

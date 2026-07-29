@@ -4,7 +4,7 @@ import urllib.error
 import discord
 from discord.ext import commands
 
-from core import config_manager
+from core import config_manager, server_readiness
 from integrations import discord_bot as bot_module
 from shared.discord_activity import bot_reply_activity, command_activity, configured_channel_ids
 from shared.status import ServerState, ServerStatus
@@ -125,15 +125,23 @@ class ServerControl(commands.Cog):
             return
 
         try:
+            await ctx.send("Starting game server. Waiting for Docker health...")
             await asyncio.to_thread(config_manager.start_server)
             config_manager.set_server_launch_source(
                 ("discord", ctx.channel.id), idle_shutdown_override
             )
+            starting_status = ServerStatus(ServerState.STARTING)
+            bot_module.signals.status_changed.emit(starting_status)
+            await self.bot.change_presence(
+                status=discord.Status.online,
+                activity=discord.Game(name="Palworld Starting"),
+            )
+            await asyncio.to_thread(server_readiness.wait_until_ready)
+            bot_module.signals.status_changed.emit(ServerStatus(ServerState.RUNNING))
             await self.bot.change_presence(
                 status=discord.Status.online,
                 activity=discord.Game(name="Palworld Server (ONLINE)"),
             )
-            bot_module.signals.status_changed.emit(ServerStatus(ServerState.RUNNING))
             if idle_shutdown_override is False:
                 idle_policy = " Idle shutdown is disabled for this session."
             elif idle_shutdown_override is not None:
