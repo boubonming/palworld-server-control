@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from core import config_manager
-from ui.page import Page
+from desktop.ui.page import Page
 
 
 class AppSettingsPage(Page):

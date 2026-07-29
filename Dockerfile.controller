@@ -1,0 +1,17 @@
+FROM python:3.12-slim-trixie
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PALWORLD_CONTROL_DATA_DIR=/data
+
+WORKDIR /app
+COPY requirements-common.txt requirements-controller.txt ./
+RUN pip install --no-cache-dir -r requirements-controller.txt
+COPY src ./src
+COPY metadata.json technology_ids.json ./
+
+RUN mkdir -p /data
+
+VOLUME ["/data"]
+EXPOSE 8080
+CMD ["python", "src/server_main.py", "--host", "0.0.0.0", "--port", "8080"]

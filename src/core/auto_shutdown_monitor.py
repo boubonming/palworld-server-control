@@ -2,20 +2,17 @@
 
 import threading
 
-from PySide6.QtCore import QObject, Signal
-
-from core import api_client, config_manager
+from core import api_client, config_manager, server_readiness
+from shared.events import EventSignal
 from shared.status import ServerState, ServerStatus
 
 
-class AutoShutdownMonitor(QObject):
+class AutoShutdownMonitor:
     """Polls Palworld independently of Discord and shuts down idle servers."""
 
-    status_changed = Signal(object)
-    idle_shutdown = Signal(int, object)
-
-    def __init__(self, interval_seconds=60, parent=None):
-        super().__init__(parent)
+    def __init__(self, interval_seconds=60):
+        self.status_changed = EventSignal()
+        self.idle_shutdown = EventSignal()
         self.interval_seconds = interval_seconds
         self.empty_minutes_counter = 0
         self._server_was_running = False
@@ -56,8 +53,8 @@ class AutoShutdownMonitor(QObject):
             self.check_once()
 
     def check_once(self):
-        process_id = config_manager.get_server_process_id()
-        if process_id is None:
+        server_status = server_readiness.get_status()
+        if server_status.state is ServerState.STOPPED:
             self.empty_minutes_counter = 0
             if self._server_was_running:
                 self._server_was_running = False
@@ -67,7 +64,11 @@ class AutoShutdownMonitor(QObject):
                 config_manager.clear_server_launch_source()
                 self.status_changed.emit(ServerStatus(ServerState.STOPPED))
             return
+        if server_status.state is ServerState.STARTING:
+            self.status_changed.emit(server_status)
+            return
 
+        process_id = config_manager.get_server_process_id()
         if process_id != self._server_process_id:
             self.empty_minutes_counter = 0
             self._server_process_id = process_id
@@ -104,11 +105,7 @@ class AutoShutdownMonitor(QObject):
             if self.empty_minutes_counter < shutdown_minutes:
                 return
 
-            api_client.call_palworld_api("save")
-            api_client.call_palworld_api(
-                "shutdown",
-                payload={"waittime": 5, "message": "Inactivity shutdown"},
-            )
+            config_manager.stop_server()
             self.empty_minutes_counter = 0
             self._server_was_running = False
             self.status_changed.emit(ServerStatus(ServerState.STOPPED))

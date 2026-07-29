@@ -21,8 +21,9 @@ from PySide6.QtWidgets import (
 
 from core import config_manager
 from integrations import discord_bot as bot_module
-from ui.page import Page
-from ui.password_field import PasswordLineEdit
+from desktop.ui.page import Page
+from desktop.ui.password_field import PasswordLineEdit
+from desktop.ui.qt_bridges import discord_signals
 from shared.discord_activity import normalize_channel_id
 from shared.status import status_stylesheet
 
@@ -114,9 +115,9 @@ class DiscordPage(Page):
         self._saved_values = self.current_values()
         self.token_input.textChanged.connect(self.mark_dirty)
         self.channel_ids.itemChanged.connect(self.mark_dirty)
-        bot_module.signals.bot_status_changed.connect(self.update_status)
-        bot_module.signals.discord_activity.connect(self.record_activity)
-        bot_module.signals.discord_channel_info.connect(self.update_channel_info)
+        discord_signals.bot_status_changed.connect(self.update_status)
+        discord_signals.discord_activity.connect(self.record_activity)
+        discord_signals.discord_channel_info.connect(self.update_channel_info)
         self.update_buttons()
 
     def current_channel_ids(self):

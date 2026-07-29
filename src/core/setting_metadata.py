@@ -56,6 +56,11 @@ def get_setting_tooltip(key):
     )
 
 
+def get_setting_description(key):
+    """Return displayable metadata, or an empty string when none is available."""
+    return SETTING_METADATA.get(key, "")
+
+
 def get_setting_numeric_bounds(key):
     """Return numeric limits explicitly stated in a setting description."""
     description = SETTING_METADATA.get(key, "")

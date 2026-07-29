@@ -3,16 +3,17 @@ import json
 import urllib.request
 from core import config_manager
 
-def call_palworld_api(endpoint, method="POST", payload=None):
+def call_palworld_api(endpoint, method="POST", payload=None, timeout=10):
     """
     Communicates with the Palworld REST API using credentials 
     stored dynamically in config_manager.CONFIG.
     """
     api_config = config_manager.get_palworld_api_config()
+    api_host = api_config.get("host", "127.0.0.1")
     api_port = api_config["port"]
     admin_password = api_config["admin_password"]
 
-    url = f"http://127.0.0.1:{api_port}/v1/api/{endpoint}"
+    url = f"http://{api_host}:{api_port}/v1/api/{endpoint}"
     
     # Generate basic authentication token dynamically
     auth_str = f"admin:{admin_password}"
@@ -27,7 +28,7 @@ def call_palworld_api(endpoint, method="POST", payload=None):
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
     
     # Execute the request context
-    with urllib.request.urlopen(req, timeout=10) as response:
+    with urllib.request.urlopen(req, timeout=timeout) as response:
         status_code = response.getcode()
         if method == "GET" and status_code == 200:
             return json.loads(response.read().decode("utf-8"))
