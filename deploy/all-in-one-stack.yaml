@@ -1,9 +1,42 @@
 services:
+  palworld:
+    image: thijsvanloef/palworld-server-docker:${PALWORLD_IMAGE_TAG:-latest}
+    container_name: palworld-server
+    restart: unless-stopped
+    stop_grace_period: 60s
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TZ:-UTC}
+      PORT: ${PALWORLD_PORT:-8211}
+      QUERY_PORT: ${PALWORLD_QUERY_PORT:-27015}
+      PLAYERS: ${PALWORLD_PLAYERS:-16}
+      COMMUNITY: ${PALWORLD_COMMUNITY:-false}
+      SERVER_NAME: ${PALWORLD_SERVER_NAME:-Palworld Server}
+      SERVER_DESCRIPTION: ${PALWORLD_SERVER_DESCRIPTION:-Managed by Palworld Server Control}
+      SERVER_PASSWORD: ${PALWORLD_SERVER_PASSWORD:-}
+      ADMIN_PASSWORD: ${PALWORLD_ADMIN_PASSWORD:?Set PALWORLD_ADMIN_PASSWORD}
+      REST_API_ENABLED: "true"
+      REST_API_PORT: ${PALWORLD_REST_API_PORT:-8212}
+      DISABLE_GENERATE_SETTINGS: ${PALWORLD_DISABLE_GENERATE_SETTINGS:-false}
+      BACKUP_ENABLED: ${PALWORLD_BACKUP_ENABLED:-true}
+      UPDATE_ON_BOOT: ${PALWORLD_UPDATE_ON_BOOT:-true}
+    ports:
+      - "${PALWORLD_PORT:-8211}:${PALWORLD_PORT:-8211}/udp"
+      - "${PALWORLD_QUERY_PORT:-27015}:${PALWORLD_QUERY_PORT:-27015}/udp"
+    volumes:
+      - type: bind
+        source: ${PALWORLD_DATA_DIR:-./palworld}
+        target: /palworld
+    networks:
+      - palworld-control
+
   controller:
     image: ghcr.io/boubonming/palworld-server-control:${CONTROLLER_IMAGE_TAG:-latest}
     container_name: palworld-server-control
     restart: unless-stopped
     depends_on:
+      - palworld
       - socket-proxy
     environment:
       PALWORLD_CONTROL_DATA_DIR: /data
@@ -14,8 +47,8 @@ services:
     volumes:
       - controller-data:/data
       - type: bind
-        source: ${PALWORLD_CONFIG_DIR}
-        target: /palworld-config
+        source: ${PALWORLD_DATA_DIR:-./palworld}
+        target: /palworld-data
     networks:
       - socket-control
       - palworld-control
@@ -67,4 +100,3 @@ networks:
   socket-control:
     internal: true
   palworld-control:
-    external: true

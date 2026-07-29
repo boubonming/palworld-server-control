@@ -28,6 +28,7 @@ PGID={pgid}
 TZ=UTC
 PORT=8211
 QUERY_PORT=27015
+COMMUNITY={community}
 PLAYERS=16
 REST_API_ENABLED=true
 REST_API_PORT=8212
@@ -73,7 +74,7 @@ SPECIAL_SETTING_ENV_NAMES = {
 }
 
 
-def create_deployment(directory):
+def create_deployment(directory, community=False):
     directory = os.path.abspath(os.path.expanduser(directory))
     os.makedirs(directory, exist_ok=True)
     compose_path = os.path.join(directory, "compose.yaml")
@@ -89,6 +90,7 @@ def create_deployment(directory):
     initial_env = DEFAULT_ENV.format(
         puid=puid,
         pgid=pgid,
+        community=str(bool(community)).lower(),
         admin_password=secrets.token_urlsafe(24),
     )
     with open(env_path, "x", encoding="utf-8", newline="\n") as env_file:

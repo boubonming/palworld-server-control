@@ -43,32 +43,47 @@ On first launch, choose a native Windows server or Docker Compose. Native mode d
 
 ## Docker controller, Socket Proxy, and web interface
 
-This Linux-container stack runs on Docker Engine for Linux or Docker Desktop for Windows. The controller keeps the Discord bot and idle-shutdown monitor on the server and exposes a password-protected web interface to your private network. Only Socket Proxy mounts the Docker socket; the controller receives narrowly filtered container status, start, and stop access.
+The recommended deployment uses two independent stacks: your Palworld server stack, plus a control stack containing Palworld Server Control and a restricted Docker Socket Proxy. This lets Palworld and the controller be updated or recreated independently. An optional all-in-one stack is also provided for new installations.
 
-Prerequisites:
+The control stack expects:
 
 - An existing `thijsvanloef/palworld-server-docker` container named `palworld-server`
-- A shared external Docker network, such as `palworld-control`, attached to both the controller and Palworld services
-- Palworld REST API enabled and reachable from the controller network
+- A shared external Docker network named `palworld-control`
+- The Palworld configuration directory mounted into the controller
+- Palworld REST API enabled and reachable as `palworld-server`
 - `DISABLE_GENERATE_SETTINGS=true` on the Palworld container
-- The host directory containing `PalWorldSettings.ini`
 
-The GitHub Actions workflow in `.github/workflows/controller-image.yml` publishes `ghcr.io/boubonming/palworld-server-control:latest` from `main`, plus version and commit tags. Make that GHCR package public, or add its credentials to Portainer's registry configuration. Create the external `palworld-control` network and attach the Palworld service to it. Then deploy [`deploy/controller-stack.yaml`](deploy/controller-stack.yaml) through Portainer or Docker Compose with these stack variables:
+The GitHub Actions workflow in `.github/workflows/controller-image.yml` publishes `ghcr.io/boubonming/palworld-server-control:latest` from `main`, plus version and commit tags. Make that GHCR package public, or add its credentials to Portainer's registry configuration.
 
-- `PALWORLD_CONTROL_WEB_PASSWORD`: web password of at least ten characters
-- `PALWORLD_CONFIG_DIR`: host path ending in `Pal/Saved/Config/LinuxServer`
-- `CONTROLLER_IMAGE_TAG`: optional image tag; omit it to use `latest`
+Create the shared network and attach the existing Palworld service to it. Copy [`deploy/controller-stack.env.example`](deploy/controller-stack.env.example) to `.env`, set the web password and existing Palworld configuration directory, then deploy the control stack:
+
+```bash
+docker network create palworld-control
+docker compose --env-file .env -f deploy/controller-stack.yaml up -d
+```
+
+If the existing Palworld Compose file does not already use `palworld-control`, add it as an external network to that service and redeploy the Palworld stack.
+
+### Optional all-in-one stack
+
+For a new installation, [`deploy/all-in-one-stack.yaml`](deploy/all-in-one-stack.yaml) creates Palworld, the controller, and Socket Proxy together. Copy [`deploy/all-in-one-stack.env.example`](deploy/all-in-one-stack.env.example) to `.env`, configure it, and deploy:
+
+```bash
+docker compose --env-file .env -f deploy/all-in-one-stack.yaml up -d
+```
+
+On its first deployment, leave `PALWORLD_DISABLE_GENERATE_SETTINGS=false` so the Palworld image creates `PalWorldSettings.ini`. After Palworld starts successfully, change it to `true` and redeploy once before changing settings through the controller. In **Docker setup**, use `/palworld-data/Pal/Saved/Config/LinuxServer/PalWorldSettings.ini` as the mounted INI path.
 
 The stack automatically pulls and creates `lscr.io/linuxserver/socket-proxy`. Its port is not published, its filesystem is read-only, and its network is internal to the controller. General Docker POST access remains disabled; only container start and stop exceptions are enabled.
 
-Open `http://<linux-server-private-ip>:8080` from your personal PC. Keep this port restricted to a trusted LAN or private VPN; it is not intended for direct public-internet exposure.
+Open `http://<linux-server-private-ip>:8080` from your personal PC, or use the port selected by `CONTROLLER_WEB_PORT`. Keep this port restricted to a trusted LAN or private VPN; it is not intended for direct public-internet exposure. The Palworld REST API remains available only on the private Compose network and is not published to the host.
 
 In **Docker setup**, verify:
 
 - Socket Proxy URL, normally `http://socket-proxy:2375`
 - Palworld container name, normally `palworld-server`
-- Mounted INI path, normally `/palworld-config/PalWorldSettings.ini`
-- Palworld REST hostname on the shared Docker network
+- Mounted INI path, normally `/palworld-config/PalWorldSettings.ini` for the recommended two-stack deployment
+- Palworld REST hostname, normally `palworld-server`
 
 Server settings are written directly to the mounted INI while Palworld is stopped. A stop first calls Palworld's REST save endpoint and proceeds only when that succeeds. It then asks Socket Proxy to stop the container with a 60-second timeout, allowing the image's normal `SIGTERM` shutdown handling to run. Docker's `unless-stopped` policy respects this intentional stop.
 

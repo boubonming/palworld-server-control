@@ -61,7 +61,15 @@ class ServerSetupDialog(QDialog):
         )
         self.create_stack = QCheckBox("Create a new Palworld Docker Compose stack")
         self.create_stack.setChecked(False)
+        self.create_stack.toggled.connect(self._update_community_option)
         docker_form.addRow("Setup", self.create_stack)
+        self.community_server = QCheckBox(
+            "Start as a community server (listed in the community browser)"
+        )
+        self.community_server.setToolTip(
+            "For an existing Compose stack, set COMMUNITY in its .env file."
+        )
+        docker_form.addRow("Visibility", self.community_server)
         self.compose_service = QLineEdit(config.get("docker_service_name", "palworld"))
         docker_form.addRow("Compose service", self.compose_service)
         layout.addWidget(self.docker_fields)
@@ -82,6 +90,7 @@ class ServerSetupDialog(QDialog):
         else:
             self.docker_backend.setChecked(True)
         self._update_backend_fields()
+        self._update_community_option(self.create_stack.isChecked())
 
     def _path_picker(self, field, title):
         container = QWidget()
@@ -103,6 +112,9 @@ class ServerSetupDialog(QDialog):
         self.native_fields.setVisible(use_native)
         self.docker_fields.setVisible(not use_native)
 
+    def _update_community_option(self, creating_stack):
+        self.community_server.setEnabled(creating_stack)
+
     def _save(self):
         self.error.clear()
         try:
@@ -123,7 +135,10 @@ class ServerSetupDialog(QDialog):
                     raise ValueError("Select a Docker Compose folder.")
                 docker_deployment.validate_docker()
                 if self.create_stack.isChecked():
-                    docker_deployment.create_deployment(directory)
+                    docker_deployment.create_deployment(
+                        directory,
+                        community=self.community_server.isChecked(),
+                    )
                 config_manager.configure_docker_backend(
                     directory,
                     service_name=self.compose_service.text().strip() or "palworld",
