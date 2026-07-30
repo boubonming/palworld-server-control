@@ -19,6 +19,7 @@
     <a class="button" href="{{ url_for('setup') }}">Configure Docker</a>
   </section>
 {% else %}
+  <div id="server-action-feedback" hidden></div>
   <section class="card">
     <div class="actions">
       <form method="post" action="{{ url_for('server_action', action='start') }}">
@@ -27,7 +28,7 @@
       </form>
       <form method="post" action="{{ url_for('server_action', action='stop') }}">
         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-        <button id="stop-server" class="danger" type="submit" {% if server_status.state.value == 'stopped' %}disabled{% endif %}>Save and stop</button>
+        <button id="stop-server" class="danger" type="submit" {% if server_status.state.value in ('stopped', 'stopping') %}disabled{% endif %}>Save and stop</button>
       </form>
     </div>
     <dl class="details">
@@ -50,6 +51,8 @@
   </section>
 {% endif %}
 
+{% include "server_logs.html" %}
+
 <section class="card">
   <h2>Recent server activity</h2>
   {% if activity %}
@@ -71,7 +74,15 @@ setInterval(async () => {
   status.textContent = data.display;
   status.className = "status " + data.state;
   document.getElementById("start-server").disabled = data.state !== "stopped";
-  document.getElementById("stop-server").disabled = data.state === "stopped";
+  document.getElementById("stop-server").disabled = ["stopped", "stopping"].includes(data.state);
+  const feedback = document.getElementById("server-action-feedback");
+  if (data.stop_error) {
+    feedback.textContent = data.stop_error;
+    feedback.className = "flash error";
+    feedback.hidden = false;
+  } else {
+    feedback.hidden = true;
+  }
 }, 2000);
 </script>
 {% endif %}

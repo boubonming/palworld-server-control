@@ -135,13 +135,32 @@
               {% endif %}
               {% if item.hint %}<small>{{ item.hint }}</small>{% endif %}
             {% else %}
-              <input
-                id="setting-{{ item.key }}"
-                name="setting__{{ item.key }}"
-                value="{{ item.value }}"
-                type="{{ 'password' if item.secret else 'text' }}"
-                {% if running %}disabled{% endif %}
-              >
+              {% if item.secret %}
+                <div class="password-field">
+                  <input
+                    id="setting-{{ item.key }}"
+                    name="setting__{{ item.key }}"
+                    value="{{ item.value }}"
+                    type="password"
+                    {% if running %}disabled{% endif %}
+                  >
+                  <button
+                    class="password-toggle"
+                    type="button"
+                    data-target="setting-{{ item.key }}"
+                    aria-label="Show {{ item.name }}"
+                    aria-pressed="false"
+                  >Show</button>
+                </div>
+              {% else %}
+                <input
+                  id="setting-{{ item.key }}"
+                  name="setting__{{ item.key }}"
+                  value="{{ item.value }}"
+                  type="text"
+                  {% if running %}disabled{% endif %}
+                >
+              {% endif %}
             {% endif %}
             {% if item.description %}<small>{{ item.description }}</small>{% endif %}
           </div>
@@ -216,6 +235,20 @@ function filterSettings() {
   document.getElementById("no-settings-results").hidden = visibleTotal !== 0;
 }
 search.addEventListener("input", filterSettings);
+
+for (const toggle of document.querySelectorAll(".password-toggle")) {
+  const input = document.getElementById(toggle.dataset.target);
+  toggle.addEventListener("click", () => {
+    const visible = input.type === "password";
+    input.type = visible ? "text" : "password";
+    toggle.textContent = visible ? "Hide" : "Show";
+    toggle.setAttribute("aria-pressed", String(visible));
+    toggle.setAttribute(
+      "aria-label",
+      `${visible ? "Hide" : "Show"} ${input.closest(".setting").querySelector("label").textContent.trim()}`
+    );
+  });
+}
 
 for (const slider of document.querySelectorAll(".setting-range")) {
   const number = document.getElementById(slider.dataset.target);

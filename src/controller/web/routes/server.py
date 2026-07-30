@@ -3,7 +3,22 @@
 from flask import abort, flash, jsonify, redirect, render_template, request, url_for
 
 from core import api_client, config_manager, server_readiness
-from shared.status import ServerState
+from shared.status import ServerState, ServerStatus
+
+
+def _runtime_flag(runtime, method_name):
+    method = getattr(runtime, method_name, None)
+    if not callable(method):
+        return False
+    return method() is True
+
+
+def _display_status(runtime, configured):
+    if not configured:
+        return None
+    if _runtime_flag(runtime, "is_server_stop_in_progress"):
+        return ServerStatus(ServerState.STOPPING)
+    return server_readiness.get_status()
 
 
 def _socket_proxy_configured():
@@ -17,7 +32,7 @@ def register_server_routes(app, runtime):
     @app.get("/")
     def dashboard():
         configured = _socket_proxy_configured()
-        server_status = server_readiness.get_status() if configured else None
+        server_status = _display_status(runtime, configured)
         return render_template(
             "dashboard.html",
             configured=configured,
@@ -33,7 +48,13 @@ def register_server_routes(app, runtime):
     @app.get("/api/status")
     def status_api():
         configured = _socket_proxy_configured()
-        server_status = server_readiness.get_status() if configured else None
+        server_status = _display_status(runtime, configured)
+        stop_error = None
+        error_getter = getattr(runtime, "server_stop_error", None)
+        if callable(error_getter):
+            candidate = error_getter()
+            if isinstance(candidate, str):
+                stop_error = candidate
         return jsonify(
             configured=configured,
             state=(
@@ -42,7 +63,19 @@ def register_server_routes(app, runtime):
                 else ServerState.STOPPED.value
             ),
             display=server_status.display if server_status is not None else "Stopped",
+            stop_error=stop_error,
         )
+
+    @app.get("/api/server/logs")
+    def server_logs_api():
+        try:
+            tail = request.args.get("tail", 200, type=int)
+            backend = config_manager.get_server_backend()
+            if not hasattr(backend, "logs"):
+                raise RuntimeError("Container logs are unavailable for this backend.")
+            return jsonify(logs=backend.logs(tail=tail))
+        except Exception as exc:
+            return jsonify(error=str(exc)), 502
 
     @app.post("/server/<action>")
     def server_action(action):
@@ -58,14 +91,13 @@ def register_server_routes(app, runtime):
                     else "Server is already running."
                 )
             elif action == "stop":
-                changed = config_manager.stop_server()
-                config_manager.clear_server_launch_source()
-                runtime.record("Graceful server stop requested from web")
-                flash(
-                    "Server stopped safely."
-                    if changed
-                    else "Server is already stopped."
-                )
+                if not config_manager.is_server_process_running():
+                    flash("Server is already stopped.")
+                elif runtime.request_server_stop():
+                    runtime.record("Graceful server stop requested from web")
+                    flash("Saving and stopping the server.")
+                else:
+                    flash("Server stop is already in progress.")
             else:
                 abort(404)
         except Exception as exc:

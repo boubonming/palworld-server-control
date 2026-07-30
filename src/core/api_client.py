@@ -1,7 +1,14 @@
 import base64
 import json
+import logging
+import time
+import urllib.error
 import urllib.request
+
 from core import config_manager
+
+logger = logging.getLogger(__name__)
+
 
 def call_palworld_api(endpoint, method="POST", payload=None, timeout=10):
     """
@@ -26,13 +33,54 @@ def call_palworld_api(endpoint, method="POST", payload=None, timeout=10):
         headers["Content-Type"] = "application/json"
         
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
-    
-    # Execute the request context
-    with urllib.request.urlopen(req, timeout=timeout) as response:
-        status_code = response.getcode()
-        if method == "GET" and status_code == 200:
-            return json.loads(response.read().decode("utf-8"))
-        return status_code
+    started_at = time.monotonic()
+    logger.info(
+        "Palworld API request started: method=%s url=%s timeout=%ss",
+        method,
+        url,
+        timeout,
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            status_code = response.getcode()
+            if method == "GET" and status_code == 200:
+                result = json.loads(response.read().decode("utf-8"))
+            else:
+                result = status_code
+    except urllib.error.HTTPError as exc:
+        logger.error(
+            "Palworld API request failed: method=%s url=%s status=%s reason=%s "
+            "elapsed=%.3fs",
+            method,
+            url,
+            exc.code,
+            exc.reason,
+            time.monotonic() - started_at,
+            exc_info=True,
+        )
+        raise
+    except Exception as exc:
+        logger.error(
+            "Palworld API request failed: method=%s url=%s error=%s: %s "
+            "elapsed=%.3fs",
+            method,
+            url,
+            type(exc).__name__,
+            exc,
+            time.monotonic() - started_at,
+            exc_info=True,
+        )
+        raise
+
+    logger.info(
+        "Palworld API request completed: method=%s url=%s status=%s elapsed=%.3fs",
+        method,
+        url,
+        status_code,
+        time.monotonic() - started_at,
+    )
+    return result
 
 
 def announce_message(message):

@@ -74,6 +74,11 @@ docker compose --env-file .env -f deploy/all-in-one-stack.yaml up -d
 
 On its first deployment, leave `PALWORLD_DISABLE_GENERATE_SETTINGS=false` so the Palworld image creates `PalWorldSettings.ini`. After Palworld starts successfully, change it to `true` and redeploy once before changing settings through the controller. In **Docker setup**, use `/palworld-data/Pal/Saved/Config/LinuxServer/PalWorldSettings.ini` as the mounted INI path.
 
+If reinstalling into a new or empty `PALWORLD_DATA_DIR`, set
+`PALWORLD_DISABLE_GENERATE_SETTINGS=false` again for the first successful start.
+Keeping it set to `true` prevents the new `PalWorldSettings.ini` from being
+generated.
+
 The stack automatically pulls and creates `lscr.io/linuxserver/socket-proxy`. Its port is not published, its filesystem is read-only, and its network is internal to the controller. General Docker POST access remains disabled; only container start and stop exceptions are enabled.
 
 Open `http://<linux-server-private-ip>:8080` from your personal PC, or use the port selected by `CONTROLLER_WEB_PORT`. Keep this port restricted to a trusted LAN or private VPN; it is not intended for direct public-internet exposure. The Palworld REST API remains available only on the private Compose network and is not published to the host.

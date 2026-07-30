@@ -1,11 +1,15 @@
 import asyncio
+import logging
 import threading
+
 import discord
 from discord.ext import commands
 from core import config_manager, server_readiness
 from shared.discord_activity import channel_context, command_activity, normalize_channel_id
 from shared.events import EventSignal
 from shared.status import ServerState, ServerStatus
+
+logger = logging.getLogger(__name__)
 
 
 class BotSignals:
@@ -57,7 +61,7 @@ def create_bot():
             try:
                 await self.load_extension("integrations.server_cog")
             except Exception as exc:
-                print(f"Discord command module failed to load: {exc}")
+                logger.exception("Discord command module failed to load")
                 signals.bot_status_changed.emit(
                     f"Discord commands failed to load: {exc}"
                 )
@@ -66,7 +70,7 @@ def create_bot():
 
     @bot_instance.event
     async def on_ready():
-        print(f"🎉 Success! Bot is online as {bot_instance.user}")
+        logger.info("Discord bot is online as %s", bot_instance.user)
         with discord_manager._lock:
             discord_manager._state = "running"
         signals.bot_status_changed.emit("Discord bot is online")
@@ -186,7 +190,7 @@ class DiscordBotManager:
             try:
                 loop.run_until_complete(bot_instance.start(token))
             except Exception as exc:
-                print(f"Discord bot stopped: {exc}")
+                logger.exception("Discord bot stopped unexpectedly")
                 with self._lock:
                     stop_requested = self._stop_requested
                 retry_connection = (
@@ -268,11 +272,12 @@ class DiscordBotManager:
         except TimeoutError:
             future.cancel()
             loop.call_soon_threadsafe(loop.stop)
+            logger.error("Discord bot shutdown did not respond; forcing shutdown")
             signals.bot_status_changed.emit(
                 "Discord bot shutdown did not respond; forcing shutdown..."
             )
         except Exception as exc:
-            print(f"Discord bot close warning: {exc}")
+            logger.exception("Discord bot shutdown failed; forcing shutdown")
             loop.call_soon_threadsafe(loop.stop)
             signals.bot_status_changed.emit(
                 "Discord bot shutdown failed; forcing shutdown..."
@@ -311,7 +316,10 @@ class DiscordBotManager:
             try:
                 channel = await bot_instance.fetch_channel(channel_id)
             except Exception as exc:
-                print(f"Automated shutdown notification channel unavailable ({channel_id}): {exc}")
+                logger.exception(
+                    "Automated shutdown notification channel unavailable: channel=%s",
+                    channel_id,
+                )
                 signals.discord_activity.emit(
                     f"Automated idle shutdown notification failed: channel {channel_id} unavailable"
                 )
@@ -322,7 +330,10 @@ class DiscordBotManager:
                 f"Automated idle shutdown notification sent to channel {channel_id}"
             )
         except Exception as exc:
-            print(f"Automated shutdown notification failed for channel {channel_id}: {exc}")
+            logger.exception(
+                "Automated shutdown notification failed: channel=%s",
+                channel_id,
+            )
             signals.discord_activity.emit(
                 f"Automated idle shutdown notification failed for channel {channel_id}: {exc}"
             )

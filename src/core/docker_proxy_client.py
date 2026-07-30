@@ -16,7 +16,7 @@ class DockerProxyClient:
         if not self.base_url:
             raise DockerProxyError("Docker Socket Proxy URL is not configured.")
 
-    def _request(self, path, method="GET", timeout=15):
+    def _request(self, path, method="GET", timeout=15, raw=False):
         request = urllib.request.Request(
             f"{self.base_url}/{path.lstrip('/')}",
             headers={"Accept": "application/json"},
@@ -26,7 +26,9 @@ class DockerProxyClient:
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 contents = response.read()
                 if not contents:
-                    return None
+                    return b"" if raw else None
+                if raw:
+                    return contents
                 text = contents.decode("utf-8")
                 try:
                     return json.loads(text)
@@ -57,6 +59,45 @@ class DockerProxyClient:
     def inspect_container(self, container_id):
         encoded = urllib.parse.quote(str(container_id), safe="")
         return self._request(f"containers/{encoded}/json") or {}
+
+    def container_logs(self, container_id, tail=200):
+        encoded = urllib.parse.quote(str(container_id), safe="")
+        tail = min(max(int(tail), 20), 1000)
+        contents = self._request(
+            (
+                f"containers/{encoded}/logs"
+                f"?stdout=1&stderr=1&timestamps=1&tail={tail}"
+            ),
+            raw=True,
+        )
+        return self._decode_log_stream(contents)
+
+    @staticmethod
+    def _decode_log_stream(contents):
+        """Decodes Docker's multiplexed stdout/stderr framing when present."""
+        if not contents:
+            return ""
+        if (
+            len(contents) < 8
+            or contents[0] not in (0, 1, 2)
+            or contents[1:4] != b"\0\0\0"
+        ):
+            return contents.decode("utf-8", errors="replace")
+
+        messages = []
+        offset = 0
+        while offset + 8 <= len(contents):
+            header = contents[offset:offset + 8]
+            if header[0] not in (0, 1, 2) or header[1:4] != b"\0\0\0":
+                return contents.decode("utf-8", errors="replace")
+            length = int.from_bytes(header[4:8], "big")
+            start = offset + 8
+            end = start + length
+            if end > len(contents):
+                return contents.decode("utf-8", errors="replace")
+            messages.append(contents[start:end])
+            offset = end
+        return b"".join(messages).decode("utf-8", errors="replace")
 
     def start_container(self, container_id):
         encoded = urllib.parse.quote(str(container_id), safe="")

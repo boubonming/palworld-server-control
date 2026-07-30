@@ -2,6 +2,7 @@
 
 import argparse
 import getpass
+import logging
 import os
 import secrets
 import signal
@@ -14,6 +15,17 @@ from werkzeug.security import generate_password_hash
 from core import config_manager
 from controller.web.app import create_web_app
 from controller.runtime import HeadlessRuntime
+
+
+def _configure_logging():
+    requested_level = os.environ.get("PALWORLD_CONTROL_LOG_LEVEL", "INFO").upper()
+    level = getattr(logging, requested_level, logging.INFO)
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s [%(threadName)s] %(name)s: %(message)s",
+        stream=sys.stdout,
+        force=True,
+    )
 
 
 def _arguments():
@@ -50,9 +62,17 @@ def _ensure_web_credentials(config, supplied_password=None):
 
 
 def main():
+    _configure_logging()
+    logger = logging.getLogger(__name__)
     args = _arguments()
     config = config_manager.load_config()
     _ensure_web_credentials(config, args.web_password)
+    logger.info(
+        "Starting Palworld controller web interface on %s:%s (log level: %s)",
+        args.host,
+        args.port,
+        logging.getLevelName(logging.getLogger().getEffectiveLevel()),
+    )
 
     runtime = HeadlessRuntime()
     web_app = create_web_app(runtime)

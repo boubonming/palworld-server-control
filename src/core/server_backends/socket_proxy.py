@@ -59,6 +59,14 @@ class SocketProxyBackend:
             .get("Status")
         )
 
+    def logs(self, tail=200):
+        container = self._container()
+        if not container:
+            raise RuntimeError(
+                f"Palworld container '{self.container_name}' was not found."
+            )
+        return self.client().container_logs(container["Id"], tail=tail)
+
     def start(self):
         container = self._container()
         if not container:
