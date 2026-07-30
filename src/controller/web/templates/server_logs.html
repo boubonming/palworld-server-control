@@ -16,6 +16,8 @@
   const output = document.getElementById("server-logs");
   const error = document.getElementById("server-logs-error");
   const refresh = document.getElementById("refresh-server-logs");
+  const autoRefreshInterval = 5000;
+  let autoRefreshTimer = null;
 
   async function loadServerLogs() {
     refresh.disabled = true;
@@ -34,7 +36,27 @@
     }
   }
 
-  refresh.addEventListener("click", loadServerLogs);
-  loadServerLogs();
+  function scheduleAutoRefresh() {
+    clearTimeout(autoRefreshTimer);
+    if (!document.hidden) {
+      autoRefreshTimer = setTimeout(refreshAndSchedule, autoRefreshInterval);
+    }
+  }
+
+  async function refreshAndSchedule() {
+    clearTimeout(autoRefreshTimer);
+    await loadServerLogs();
+    scheduleAutoRefresh();
+  }
+
+  refresh.addEventListener("click", refreshAndSchedule);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      clearTimeout(autoRefreshTimer);
+    } else {
+      refreshAndSchedule();
+    }
+  });
+  refreshAndSchedule();
 })();
 </script>
