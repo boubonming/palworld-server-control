@@ -91,6 +91,7 @@ button.secondary { background: #34363e; border: 1px solid #545761; }
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 .container-logs { max-height: 420px; overflow: auto; }
+.log-actions .check { margin: 0; white-space: nowrap; }
 .grid.two { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 fieldset { border: 1px solid #444750; border-radius: 8px; margin-bottom: 20px; }
 .radio, .check { font-weight: 400; }

@@ -4,9 +4,15 @@
       <h2>Palworld container logs</h2>
       <p>Recent startup output from the configured Palworld container.</p>
     </div>
-    <button id="refresh-server-logs" class="secondary compact" type="button">
-      Refresh
-    </button>
+    <div class="actions log-actions">
+      <label class="check">
+        <input id="auto-refresh-server-logs" type="checkbox" checked>
+        Auto-refresh
+      </label>
+      <button id="refresh-server-logs" class="secondary compact" type="button">
+        Refresh
+      </button>
+    </div>
   </div>
   <div id="server-logs-error" class="flash error" hidden></div>
   <pre id="server-logs" class="activity container-logs">Loading container logs…</pre>
@@ -16,8 +22,10 @@
   const output = document.getElementById("server-logs");
   const error = document.getElementById("server-logs-error");
   const refresh = document.getElementById("refresh-server-logs");
+  const autoRefresh = document.getElementById("auto-refresh-server-logs");
   const autoRefreshInterval = 5000;
   let autoRefreshTimer = null;
+  let hasLoadedLogs = false;
 
   async function loadServerLogs() {
     refresh.disabled = true;
@@ -26,7 +34,13 @@
       const response = await fetch("{{ url_for('server_logs_api') }}?tail=200");
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Container logs could not be loaded.");
+      const wasViewingLatest = !hasLoadedLogs
+        || output.scrollHeight - output.scrollTop - output.clientHeight < 40;
       output.textContent = data.logs || "The container has not written any logs yet.";
+      if (wasViewingLatest) {
+        output.scrollTop = output.scrollHeight;
+      }
+      hasLoadedLogs = true;
     } catch (loadError) {
       output.textContent = "";
       error.textContent = loadError.message;
@@ -38,7 +52,7 @@
 
   function scheduleAutoRefresh() {
     clearTimeout(autoRefreshTimer);
-    if (!document.hidden) {
+    if (autoRefresh.checked && !document.hidden) {
       autoRefreshTimer = setTimeout(refreshAndSchedule, autoRefreshInterval);
     }
   }
@@ -50,10 +64,17 @@
   }
 
   refresh.addEventListener("click", refreshAndSchedule);
+  autoRefresh.addEventListener("change", () => {
+    if (autoRefresh.checked) {
+      refreshAndSchedule();
+    } else {
+      clearTimeout(autoRefreshTimer);
+    }
+  });
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
       clearTimeout(autoRefreshTimer);
-    } else {
+    } else if (autoRefresh.checked) {
       refreshAndSchedule();
     }
   });
