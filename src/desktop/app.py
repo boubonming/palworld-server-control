@@ -20,6 +20,7 @@ from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QStyle
 
 from core import config_manager
+from core.auto_backup import AutoBackupMonitor
 from integrations import discord_bot
 from desktop.ui.qt_bridges import QtAutoShutdownMonitor, discord_signals
 from desktop.ui.pages import (
@@ -77,6 +78,7 @@ class MainWindow(QMainWindow):
         self.discord = DiscordPage()
         self.app_settings = AppSettingsPage()
         self.auto_shutdown_monitor = QtAutoShutdownMonitor(parent=self)
+        self.auto_backup_monitor = AutoBackupMonitor()
         self.auto_shutdown_monitor.status_changed.connect(self.server_status.update_status)
         self.auto_shutdown_monitor.status_changed.connect(
             self.announcements.handle_server_status
@@ -85,6 +87,7 @@ class MainWindow(QMainWindow):
         self.auto_shutdown_monitor.idle_shutdown.connect(discord_bot.notify_idle_shutdown)
         self.server_status.status_changed.connect(discord_bot.update_server_presence)
         self.auto_shutdown_monitor.start()
+        self.auto_backup_monitor.start()
         for page in (
             self.server_status,
             self.announcements,
@@ -204,6 +207,7 @@ class MainWindow(QMainWindow):
         if self.tray_icon:
             self.tray_icon.hide()
         self.auto_shutdown_monitor.stop()
+        self.auto_backup_monitor.stop()
         if discord_bot.discord_manager.state != "stopped":
             self._exit_requested = True
             discord_bot.discord_manager.stop()

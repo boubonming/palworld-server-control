@@ -18,9 +18,17 @@ DEFAULT_DISCORD_BOT_AUTO_START = True
 DEFAULT_SILENT_SERVER_LAUNCH = False
 DEFAULT_AUTO_SHUTDOWN_ENABLED = True
 DEFAULT_AUTO_SHUTDOWN_EMPTY_MINUTES = 5
+DEFAULT_AUTO_BACKUP_ENABLED = True
+DEFAULT_AUTO_BACKUP_INTERVAL_MINUTES = 30
+DEFAULT_AUTO_BACKUP_RETENTION_COUNT = 24
+DEFAULT_AUTO_BACKUP_DIRECTORY = ""
 DEFAULT_SERVER_BACKEND = "windows_native"
 MIN_AUTO_SHUTDOWN_EMPTY_MINUTES = 1
 MAX_AUTO_SHUTDOWN_EMPTY_MINUTES = 1440
+MIN_AUTO_BACKUP_INTERVAL_MINUTES = 1
+MAX_AUTO_BACKUP_INTERVAL_MINUTES = 1440
+MIN_AUTO_BACKUP_RETENTION_COUNT = 1
+MAX_AUTO_BACKUP_RETENTION_COUNT = 100
 _server_launch_source = None
 _server_idle_shutdown_override = None
 _server_launch_source_lock = threading.Lock()
@@ -69,6 +77,10 @@ def load_config():
             "silent_server_launch": DEFAULT_SILENT_SERVER_LAUNCH,
             "auto_shutdown_enabled": DEFAULT_AUTO_SHUTDOWN_ENABLED,
             "auto_shutdown_empty_minutes": DEFAULT_AUTO_SHUTDOWN_EMPTY_MINUTES,
+            "auto_backup_enabled": DEFAULT_AUTO_BACKUP_ENABLED,
+            "auto_backup_interval_minutes": DEFAULT_AUTO_BACKUP_INTERVAL_MINUTES,
+            "auto_backup_retention_count": DEFAULT_AUTO_BACKUP_RETENTION_COUNT,
+            "auto_backup_directory": DEFAULT_AUTO_BACKUP_DIRECTORY,
         }
         save_config()
     else:
@@ -80,6 +92,14 @@ def load_config():
     CONFIG.setdefault("silent_server_launch", DEFAULT_SILENT_SERVER_LAUNCH)
     CONFIG.setdefault("auto_shutdown_enabled", DEFAULT_AUTO_SHUTDOWN_ENABLED)
     CONFIG.setdefault("auto_shutdown_empty_minutes", DEFAULT_AUTO_SHUTDOWN_EMPTY_MINUTES)
+    CONFIG.setdefault("auto_backup_enabled", DEFAULT_AUTO_BACKUP_ENABLED)
+    CONFIG.setdefault(
+        "auto_backup_interval_minutes", DEFAULT_AUTO_BACKUP_INTERVAL_MINUTES
+    )
+    CONFIG.setdefault(
+        "auto_backup_retention_count", DEFAULT_AUTO_BACKUP_RETENTION_COUNT
+    )
+    CONFIG.setdefault("auto_backup_directory", DEFAULT_AUTO_BACKUP_DIRECTORY)
     CONFIG.setdefault("palworld_channel_ids", [])
     CONFIG.setdefault("server_backend", DEFAULT_SERVER_BACKEND)
     CONFIG.setdefault("docker_compose_dir", "")
@@ -198,6 +218,91 @@ def set_auto_shutdown_empty_minutes(minutes):
         min(minutes, MAX_AUTO_SHUTDOWN_EMPTY_MINUTES),
     )
     save_config()
+
+
+def get_auto_backup_enabled():
+    return bool(CONFIG.get("auto_backup_enabled", DEFAULT_AUTO_BACKUP_ENABLED))
+
+
+def set_auto_backup_enabled(enabled):
+    CONFIG["auto_backup_enabled"] = bool(enabled)
+    save_config()
+
+
+def get_auto_backup_interval_minutes():
+    try:
+        minutes = int(
+            CONFIG.get(
+                "auto_backup_interval_minutes",
+                DEFAULT_AUTO_BACKUP_INTERVAL_MINUTES,
+            )
+        )
+    except (TypeError, ValueError):
+        minutes = DEFAULT_AUTO_BACKUP_INTERVAL_MINUTES
+    return max(
+        MIN_AUTO_BACKUP_INTERVAL_MINUTES,
+        min(minutes, MAX_AUTO_BACKUP_INTERVAL_MINUTES),
+    )
+
+
+def set_auto_backup_interval_minutes(minutes):
+    try:
+        minutes = int(minutes)
+    except (TypeError, ValueError):
+        minutes = DEFAULT_AUTO_BACKUP_INTERVAL_MINUTES
+    CONFIG["auto_backup_interval_minutes"] = max(
+        MIN_AUTO_BACKUP_INTERVAL_MINUTES,
+        min(minutes, MAX_AUTO_BACKUP_INTERVAL_MINUTES),
+    )
+    save_config()
+
+
+def get_auto_backup_retention_count():
+    try:
+        count = int(
+            CONFIG.get(
+                "auto_backup_retention_count",
+                DEFAULT_AUTO_BACKUP_RETENTION_COUNT,
+            )
+        )
+    except (TypeError, ValueError):
+        count = DEFAULT_AUTO_BACKUP_RETENTION_COUNT
+    return max(
+        MIN_AUTO_BACKUP_RETENTION_COUNT,
+        min(count, MAX_AUTO_BACKUP_RETENTION_COUNT),
+    )
+
+
+def set_auto_backup_retention_count(count):
+    try:
+        count = int(count)
+    except (TypeError, ValueError):
+        count = DEFAULT_AUTO_BACKUP_RETENTION_COUNT
+    CONFIG["auto_backup_retention_count"] = max(
+        MIN_AUTO_BACKUP_RETENTION_COUNT,
+        min(count, MAX_AUTO_BACKUP_RETENTION_COUNT),
+    )
+    save_config()
+
+
+def get_auto_backup_directory():
+    configured = str(
+        CONFIG.get("auto_backup_directory", DEFAULT_AUTO_BACKUP_DIRECTORY) or ""
+    ).strip()
+    if not configured:
+        return ""
+    return os.path.abspath(os.path.expandvars(os.path.expanduser(configured)))
+
+
+def set_auto_backup_directory(directory):
+    configured = str(directory or "").strip()
+    CONFIG["auto_backup_directory"] = (
+        os.path.abspath(os.path.expandvars(os.path.expanduser(configured)))
+        if configured
+        else ""
+    )
+    save_config()
+
 
 def get_palworld_ini_settings():
     """Reads the OptionSettings values from PalWorldSettings.ini."""
@@ -586,6 +691,20 @@ def stop_server():
     save_status = api_client.call_palworld_api("save")
     if is_container_backend() and save_status not in (200, 202):
         raise RuntimeError(f"Server save request returned HTTP {save_status}.")
+
+    if get_auto_backup_enabled():
+        time.sleep(2)
+        try:
+            from core.auto_backup import backup_service
+
+            backup_service.create_backup(request_save=False)
+        except Exception:
+            # A backup failure must not prevent Palworld's graceful shutdown.
+            import logging
+
+            logging.getLogger(__name__).exception(
+                "Final automatic backup before shutdown failed"
+            )
 
     status = api_client.call_palworld_api(
         "shutdown",

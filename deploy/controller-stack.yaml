@@ -16,6 +16,9 @@ services:
       - type: bind
         source: ${PALWORLD_CONFIG_DIR}
         target: /palworld-config
+      - type: bind
+        source: ${PALWORLD_SAVED_DIR}
+        target: /palworld-saved
     networks:
       - socket-control
       - palworld-control

@@ -5,6 +5,7 @@ import threading
 
 from core import config_manager, server_readiness
 from core.auto_shutdown_monitor import AutoShutdownMonitor
+from core.auto_backup import AutoBackupMonitor
 from integrations import discord_bot
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,7 @@ class HeadlessRuntime:
         self._shutdown_error = None
         self._stop_event = threading.Event()
         self.monitor = AutoShutdownMonitor()
+        self.backup_monitor = AutoBackupMonitor()
         self.monitor.status_changed.connect(discord_bot.update_server_presence)
         self.monitor.idle_shutdown.connect(discord_bot.notify_idle_shutdown)
         self.monitor.status_changed.connect(
@@ -130,6 +132,7 @@ class HeadlessRuntime:
         self._stop_event.clear()
         self.record("Linux controller started")
         self.monitor.start()
+        self.backup_monitor.start()
         if config_manager.get_discord_bot_auto_start():
             discord_bot.run_discord_bot(
                 config_manager.CONFIG.get("discord_bot_token", "")
@@ -138,4 +141,5 @@ class HeadlessRuntime:
     def stop(self):
         self._stop_event.set()
         self.monitor.stop()
+        self.backup_monitor.stop()
         discord_bot.discord_manager.stop()

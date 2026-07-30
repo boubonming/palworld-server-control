@@ -55,7 +55,7 @@ The control stack expects:
 
 The GitHub Actions workflow in `.github/workflows/controller-image.yml` publishes `ghcr.io/boubonming/palworld-server-control:latest` from `main`, plus version and commit tags. Make that GHCR package public, or add its credentials to Portainer's registry configuration.
 
-Create the shared network and attach the existing Palworld service to it. Copy [`deploy/controller-stack.env.example`](deploy/controller-stack.env.example) to `.env`, set the web password and existing Palworld configuration directory, then deploy the control stack:
+Create the shared network and attach the existing Palworld service to it. Copy [`deploy/controller-stack.env.example`](deploy/controller-stack.env.example) to `.env`, set the web password, existing Palworld configuration directory, and `Pal/Saved` directory, then deploy the control stack:
 
 ```bash
 docker network create palworld-control
@@ -137,6 +137,10 @@ For a community server, start PalServer with `-publiclobby`. Set `ServerName`, `
 The application-owned monitor checks player count once per minute while the server is running. If no players are detected for the configured duration, it saves the world and requests a graceful shutdown through the REST API. This works even when the Discord bot is disabled. If Discord is running, it additionally broadcasts the shutdown notice to configured control channels.
 
 Idle shutdown is enabled by default and can be toggled in **App Settings → Idle shutdown**. Its duration defaults to 5 minutes, and values from 1 to 1,440 minutes are accepted.
+
+Automatic changed-only world backups are enabled by default under **App Settings → Automatic backups**. The controller requests a save every 30 minutes while the server is running, compares the SaveGames contents with the latest successful backup, and creates a ZIP only when data changed. Retention defaults to the latest 24 changed backups and is configurable from 1 to 100. A final changed-only backup is also attempted during graceful shutdown. Backups are stored under `Pal/Saved/Backups/PalworldServerControl` by default; set **Backup location** to use another local, network, or mounted directory.
+
+For the controller-only Docker stack, set `PALWORLD_SAVED_DIR` to the host's `Pal/Saved` directory so the controller can read SaveGames and write backup archives. The all-in-one stack mounts this directory automatically. Custom Docker backup locations must be mounted into the controller container, and **Backup location** must use the container-side path.
 
 ## Discord integration
 

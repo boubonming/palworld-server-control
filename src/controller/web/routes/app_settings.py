@@ -21,6 +21,18 @@ def register_app_settings_routes(app, runtime):
             config_manager.set_auto_shutdown_empty_minutes(
                 request.form.get("auto_shutdown_empty_minutes", 5)
             )
+            config_manager.set_auto_backup_enabled(
+                request.form.get("auto_backup_enabled") == "on"
+            )
+            config_manager.set_auto_backup_interval_minutes(
+                request.form.get("auto_backup_interval_minutes", 30)
+            )
+            config_manager.set_auto_backup_retention_count(
+                request.form.get("auto_backup_retention_count", 24)
+            )
+            config_manager.set_auto_backup_directory(
+                request.form.get("auto_backup_directory", "")
+            )
             if new_password:
                 config_manager.CONFIG["web_password_hash"] = generate_password_hash(
                     new_password

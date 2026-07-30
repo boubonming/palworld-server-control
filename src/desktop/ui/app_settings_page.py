@@ -5,11 +5,13 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QIntValidator
 from PySide6.QtWidgets import (
     QCheckBox,
+    QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
+    QPushButton,
     QSpinBox,
     QWidget,
 )
@@ -103,6 +105,79 @@ class AppSettingsPage(Page):
         auto_shutdown_layout.addStretch()
         form.addRow("Idle shutdown", auto_shutdown_control)
 
+        self.auto_backup_enabled = QCheckBox("Enable changed-only backups")
+        self.auto_backup_enabled.setChecked(config_manager.get_auto_backup_enabled())
+
+        self.auto_backup_minutes = QSpinBox()
+        self.auto_backup_minutes.setRange(
+            config_manager.MIN_AUTO_BACKUP_INTERVAL_MINUTES,
+            config_manager.MAX_AUTO_BACKUP_INTERVAL_MINUTES,
+        )
+        self.auto_backup_minutes.setValue(
+            config_manager.get_auto_backup_interval_minutes()
+        )
+        self.auto_backup_minutes.setFixedWidth(96)
+
+        self.auto_backup_retention = QSpinBox()
+        self.auto_backup_retention.setRange(
+            config_manager.MIN_AUTO_BACKUP_RETENTION_COUNT,
+            config_manager.MAX_AUTO_BACKUP_RETENTION_COUNT,
+        )
+        self.auto_backup_retention.setValue(
+            config_manager.get_auto_backup_retention_count()
+        )
+        self.auto_backup_retention.setFixedWidth(72)
+
+        backup_control = QWidget()
+        backup_layout = QHBoxLayout(backup_control)
+        backup_layout.setContentsMargins(0, 0, 0, 0)
+        backup_layout.setSpacing(8)
+        backup_layout.addWidget(self.auto_backup_enabled)
+        backup_layout.addWidget(QLabel("every"))
+        backup_layout.addWidget(self.auto_backup_minutes)
+        backup_layout.addWidget(QLabel("minutes; keep"))
+        backup_layout.addWidget(self.auto_backup_retention)
+        backup_layout.addWidget(QLabel("changed backups"))
+        backup_layout.addStretch()
+        form.addRow("Automatic backups", backup_control)
+
+        self.auto_backup_directory = QLineEdit(
+            config_manager.get_auto_backup_directory()
+        )
+        self.auto_backup_directory.setPlaceholderText(
+            "Default: Pal/Saved/Backups/PalworldServerControl"
+        )
+        self.auto_backup_directory.editingFinished.connect(
+            self.save_auto_backup_directory
+        )
+        self.auto_backup_browse = QPushButton("Browse…")
+        self.auto_backup_browse.setObjectName("secondaryAction")
+        self.auto_backup_browse.clicked.connect(self.browse_auto_backup_directory)
+
+        backup_directory_control = QWidget()
+        backup_directory_layout = QHBoxLayout(backup_directory_control)
+        backup_directory_layout.setContentsMargins(0, 0, 0, 0)
+        backup_directory_layout.setSpacing(8)
+        backup_directory_layout.addWidget(self.auto_backup_directory, 1)
+        backup_directory_layout.addWidget(self.auto_backup_browse)
+        form.addRow("Backup location", backup_directory_control)
+
+        for control in (
+            self.auto_backup_minutes,
+            self.auto_backup_retention,
+            self.auto_backup_directory,
+            self.auto_backup_browse,
+        ):
+            control.setEnabled(self.auto_backup_enabled.isChecked())
+            self.auto_backup_enabled.toggled.connect(control.setEnabled)
+        self.auto_backup_enabled.toggled.connect(self.save_auto_backup_enabled)
+        self.auto_backup_minutes.valueChanged.connect(
+            self.save_auto_backup_interval
+        )
+        self.auto_backup_retention.valueChanged.connect(
+            self.save_auto_backup_retention
+        )
+
         self.content_layout.addLayout(form)
         self.content_layout.addStretch()
 
@@ -132,3 +207,34 @@ class AppSettingsPage(Page):
 
     def save_auto_shutdown_minutes(self, minutes):
         config_manager.set_auto_shutdown_empty_minutes(minutes)
+
+    def save_auto_backup_enabled(self, enabled):
+        config_manager.set_auto_backup_enabled(enabled)
+
+    def save_auto_backup_interval(self, minutes):
+        config_manager.set_auto_backup_interval_minutes(minutes)
+
+    def save_auto_backup_retention(self, count):
+        config_manager.set_auto_backup_retention_count(count)
+
+    def save_auto_backup_directory(self):
+        config_manager.set_auto_backup_directory(
+            os.path.normpath(self.auto_backup_directory.text())
+            if self.auto_backup_directory.text().strip()
+            else ""
+        )
+        self.auto_backup_directory.setText(
+            config_manager.get_auto_backup_directory()
+        )
+
+    def browse_auto_backup_directory(self):
+        selected = QFileDialog.getExistingDirectory(
+            self,
+            "Select Backup Location",
+            self.auto_backup_directory.text()
+            or config_manager.get_auto_backup_directory()
+            or config_manager.CONFIG.get("palworld_dir", ""),
+        )
+        if selected:
+            self.auto_backup_directory.setText(selected)
+            self.save_auto_backup_directory()

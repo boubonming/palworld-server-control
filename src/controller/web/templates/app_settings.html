@@ -23,6 +23,25 @@
   </section>
 
   <section class="card">
+    <h2>Automatic backups</h2>
+    <p>Save and archive world data only when its contents have changed.</p>
+    <div class="preference-row">
+      <label class="check"><input type="checkbox" name="auto_backup_enabled" {% if config.get('auto_backup_enabled', true) %}checked{% endif %}> Enable automatic backups</label>
+      <label class="compact-number"><span>Every</span>
+        <input name="auto_backup_interval_minutes" type="number" min="1" max="1440" value="{{ config.get('auto_backup_interval_minutes', 30) }}">
+        <span>minutes</span>
+      </label>
+      <label class="compact-number"><span>Keep</span>
+        <input name="auto_backup_retention_count" type="number" min="1" max="100" value="{{ config.get('auto_backup_retention_count', 24) }}">
+        <span>changed backups</span>
+      </label>
+    </div>
+    <label for="auto_backup_directory">Backup location</label>
+    <input id="auto_backup_directory" name="auto_backup_directory" type="text" value="{{ config.get('auto_backup_directory', '') }}" placeholder="Default: Pal/Saved/Backups/PalworldServerControl">
+    <small class="helper-text">Leave blank for the default. In Docker, enter a path mounted inside the controller container.</small>
+  </section>
+
+  <section class="card">
     <h2>Web access</h2>
     <p>Change the password used to sign in to this controller.</p>
     <label for="new_web_password">New password</label>
