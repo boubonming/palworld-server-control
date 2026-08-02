@@ -136,7 +136,10 @@ class ServerControl(commands.Cog):
                 status=discord.Status.online,
                 activity=discord.Game(name="Palworld Starting"),
             )
-            await asyncio.to_thread(server_readiness.wait_until_ready)
+            await asyncio.to_thread(
+                server_readiness.wait_until_ready,
+                on_status=bot_module.signals.status_changed.emit,
+            )
             bot_module.signals.status_changed.emit(ServerStatus(ServerState.RUNNING))
             await self.bot.change_presence(
                 status=discord.Status.online,

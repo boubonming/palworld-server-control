@@ -5,7 +5,12 @@ import threading
 import discord
 from discord.ext import commands
 from core import config_manager, server_readiness
-from shared.discord_activity import channel_context, command_activity, normalize_channel_id
+from shared.discord_activity import (
+    channel_context,
+    command_activity,
+    configured_channel_ids,
+    normalize_channel_id,
+)
 from shared.events import EventSignal
 from shared.status import ServerState, ServerStatus
 
@@ -137,6 +142,7 @@ class DiscordBotManager:
         self._stop_requested = False
         self._loop_ready = threading.Event()
         self._retry_wait = threading.Event()
+        self._server_update_detected = False
 
     @property
     def is_running(self):
@@ -159,6 +165,7 @@ class DiscordBotManager:
             self._stop_requested = False
             self._loop_ready.clear()
             self._retry_wait.clear()
+            self._server_update_detected = False
             global bot
             bot = None
             self.thread = threading.Thread(
@@ -339,14 +346,66 @@ class DiscordBotManager:
             )
         await bot_instance.change_presence(status=discord.Status.idle, activity=None)
 
-    async def _update_server_presence(self, status, bot_instance):
+    async def _broadcast_control_message(self, message, activity, bot_instance):
+        for channel_id in configured_channel_ids(
+            config_manager.CONFIG.get("palworld_channel_ids", [])
+        ):
+            channel = bot_instance.get_channel(channel_id)
+            if channel is None:
+                try:
+                    channel = await bot_instance.fetch_channel(channel_id)
+                except Exception:
+                    signals.discord_activity.emit(
+                        f"{activity} notification failed: channel {channel_id} unavailable"
+                    )
+                    continue
+            try:
+                await channel.send(message)
+                signals.discord_activity.emit(
+                    f"{activity} notification sent to channel {channel_id}"
+                )
+            except Exception as exc:
+                logger.exception(
+                    "%s notification failed: channel=%s",
+                    activity,
+                    channel_id,
+                )
+                signals.discord_activity.emit(
+                    f"{activity} notification failed for channel {channel_id}: {exc}"
+                )
+
+    async def _update_server_presence(
+        self,
+        status,
+        notification,
+        bot_instance,
+    ):
         if status.state is ServerState.STOPPED:
             await bot_instance.change_presence(status=discord.Status.idle, activity=None)
-            return
-        await bot_instance.change_presence(
-            status=discord.Status.online,
-            activity=discord.Game(name=f"Palworld {status.display}"),
-        )
+        else:
+            await bot_instance.change_presence(
+                status=discord.Status.online,
+                activity=discord.Game(name=f"Palworld {status.display}"),
+            )
+
+        if notification == "started":
+            await self._broadcast_control_message(
+                "Palworld server update detected. Startup may take longer than usual.",
+                "Server update detected",
+                bot_instance,
+            )
+        elif notification == "completed":
+            await self._broadcast_control_message(
+                "Palworld server update completed and the game server is online.",
+                "Server update completed",
+                bot_instance,
+            )
+        elif notification == "interrupted":
+            await self._broadcast_control_message(
+                "Palworld server update stopped before the game server became ready.",
+                "Server update interrupted",
+                bot_instance,
+            )
 
     def notify_idle_shutdown(self, minutes, launch_source):
         """Best-effort notification for a Discord-launched server session."""
@@ -367,10 +426,24 @@ class DiscordBotManager:
             loop = self.loop
             bot_instance = bot
             active = self._state in {"starting", "running"}
+            current_display = status.display
+            notification = None
+            if (
+                current_display == server_readiness.UPDATE_LABEL
+                and not self._server_update_detected
+            ):
+                self._server_update_detected = True
+                notification = "started"
+            elif self._server_update_detected and status.state is ServerState.RUNNING:
+                self._server_update_detected = False
+                notification = "completed"
+            elif self._server_update_detected and status.state is ServerState.STOPPED:
+                self._server_update_detected = False
+                notification = "interrupted"
         if not active or loop is None or bot_instance is None:
             return False
         asyncio.run_coroutine_threadsafe(
-            self._update_server_presence(status, bot_instance),
+            self._update_server_presence(status, notification, bot_instance),
             loop,
         )
         return True

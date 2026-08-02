@@ -6,6 +6,41 @@ from core import api_client, config_manager
 from shared.status import ServerState, ServerStatus
 
 
+PALWORLD_SERVER_APP_ID = "2394010"
+UPDATE_LABEL = "Updating"
+_UPDATE_LOG_MARKERS = (
+    "update state (0x61) downloading",
+    "downloading server files with depotdownloader",
+)
+_UPDATE_COMPLETE_LOG_MARKERS = (
+    f"success! app '{PALWORLD_SERVER_APP_ID}' fully installed",
+    "starting server",
+)
+
+
+def _startup_label(backend):
+    """Return a more specific Docker startup label when logs expose one."""
+    log_reader = getattr(backend, "logs", None)
+    if log_reader is None:
+        return None
+    try:
+        logs = log_reader(tail=300)
+    except Exception:
+        return None
+    if not isinstance(logs, str):
+        return None
+    logs = logs.lower()
+
+    update_at = max((logs.rfind(marker) for marker in _UPDATE_LOG_MARKERS), default=-1)
+    completed_at = max(
+        (logs.rfind(marker) for marker in _UPDATE_COMPLETE_LOG_MARKERS),
+        default=-1,
+    )
+    if update_at > completed_at:
+        return UPDATE_LABEL
+    return None
+
+
 def get_status():
     """Return readiness, not merely whether the server process exists."""
     backend = config_manager.get_server_backend()
@@ -28,12 +63,12 @@ def get_status():
             "Starting (Docker health: unhealthy)",
         )
     if health_status == "starting":
-        return ServerStatus(ServerState.STARTING)
+        return ServerStatus(ServerState.STARTING, _startup_label(backend))
 
     try:
         api_client.call_palworld_api("players", method="GET", timeout=2)
     except Exception:
-        return ServerStatus(ServerState.STARTING)
+        return ServerStatus(ServerState.STARTING, _startup_label(backend))
     return ServerStatus(ServerState.RUNNING)
 
 

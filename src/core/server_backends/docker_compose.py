@@ -88,6 +88,17 @@ class DockerComposeBackend:
         self._run("pull", self.service, timeout=1200)
         return True
 
+    def logs(self, tail=200):
+        result = self._run(
+            "logs",
+            "--no-color",
+            "--tail",
+            str(min(max(int(tail), 20), 1000)),
+            self.service,
+            timeout=20,
+        )
+        return result.stdout
+
     def stop(self):
         if not self.is_running():
             return False

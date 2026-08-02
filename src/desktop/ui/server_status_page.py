@@ -112,6 +112,8 @@ class ServerStatusPage(Page):
             self._process_poll_timer.stop()
             self.update_status(status)
             self.log.appendPlainText("Server stopped before becoming ready")
+        elif self._current_status.state is ServerState.STARTING and status.display != self._current_status.display:
+            self.update_status(status)
         elif self._current_status.state is ServerState.STOPPING and status.state is ServerState.STOPPED:
             self._process_poll_timer.stop()
             self.update_status(status)

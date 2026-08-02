@@ -82,7 +82,10 @@ class HeadlessRuntime:
 
     def _wait_for_server_startup(self):
         try:
-            status = server_readiness.wait_until_ready(stop_event=self._stop_event)
+            status = server_readiness.wait_until_ready(
+                on_status=self.monitor.status_changed.emit,
+                stop_event=self._stop_event,
+            )
             self.record("Server started and Docker health is ready")
             self.monitor.status_changed.emit(status)
         except Exception as exc:
