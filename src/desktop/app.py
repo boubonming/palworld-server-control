@@ -29,6 +29,7 @@ from desktop.ui.pages import (
     DiscordPage,
     ServerSettingsPage,
     ServerStatusPage,
+    WorldSavesPage,
 )
 from desktop.server_setup_dialog import ServerSetupDialog
 from shared.status import ServerState, ServerStatus
@@ -68,13 +69,21 @@ class MainWindow(QMainWindow):
         self.navigation = QListWidget()
         self.navigation.setFixedWidth(180)
         self.navigation.addItems(
-            ["Server Status", "Announcements", "Server Settings", "Discord", "App Settings"]
+            [
+                "Server Status",
+                "Announcements",
+                "Server Settings",
+                "World Saves",
+                "Discord",
+                "App Settings",
+            ]
         )
 
         self.pages = QStackedWidget()
         self.server_status = ServerStatusPage()
         self.announcements = AnnouncementsPage()
         self.server_settings = ServerSettingsPage()
+        self.world_saves = WorldSavesPage()
         self.discord = DiscordPage()
         self.app_settings = AppSettingsPage()
         self.auto_shutdown_monitor = QtAutoShutdownMonitor(parent=self)
@@ -83,7 +92,12 @@ class MainWindow(QMainWindow):
         self.auto_shutdown_monitor.status_changed.connect(
             self.announcements.handle_server_status
         )
-        self.auto_shutdown_monitor.status_changed.connect(self.server_settings.handle_server_status)
+        self.auto_shutdown_monitor.status_changed.connect(
+            self.server_settings.handle_server_status
+        )
+        self.auto_shutdown_monitor.status_changed.connect(
+            self.world_saves.handle_server_status
+        )
         self.auto_shutdown_monitor.idle_shutdown.connect(discord_bot.notify_idle_shutdown)
         self.server_status.status_changed.connect(discord_bot.update_server_presence)
         self.auto_shutdown_monitor.start()
@@ -92,6 +106,7 @@ class MainWindow(QMainWindow):
             self.server_status,
             self.announcements,
             self.server_settings,
+            self.world_saves,
             self.discord,
             self.app_settings,
         ):
@@ -109,6 +124,7 @@ class MainWindow(QMainWindow):
         discord_signals.status_changed.connect(self.server_status.update_status)
         discord_signals.status_changed.connect(self.announcements.handle_server_status)
         discord_signals.status_changed.connect(self.server_settings.handle_server_status)
+        discord_signals.status_changed.connect(self.world_saves.handle_server_status)
 
         self.setStyleSheet("""
             QMainWindow, QWidget { background: #1f2024; color: #eeeeee; }
@@ -181,6 +197,7 @@ class MainWindow(QMainWindow):
         self.server_status.update_status(status, log_status=False)
         self.announcements.handle_server_status(status)
         self.server_settings.handle_server_status(status)
+        self.world_saves.handle_server_status(status)
 
     def exit_application(self):
         self._exit_requested = True

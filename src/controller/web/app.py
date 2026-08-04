@@ -12,6 +12,7 @@ from controller.web.routes import (
     register_discord_routes,
     register_server_routes,
     register_settings_routes,
+    register_world_save_routes,
 )
 
 
@@ -52,6 +53,7 @@ def create_web_app(runtime):
     register_auth_routes(app)
     register_server_routes(app, runtime)
     register_settings_routes(app, runtime)
+    register_world_save_routes(app, runtime)
     register_discord_routes(app, runtime)
     register_app_settings_routes(app, runtime)
     return app
