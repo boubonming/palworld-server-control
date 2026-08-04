@@ -39,6 +39,31 @@
     <label for="auto_backup_directory">Backup location</label>
     <input id="auto_backup_directory" name="auto_backup_directory" type="text" value="{{ config.get('auto_backup_directory', '') }}" placeholder="Default: Pal/Saved/Backups/PalworldServerControl">
     <small class="helper-text">Leave blank for the default. In Docker, enter a path mounted inside the controller container.</small>
+    <div class="backup-summary">
+      <div>
+        <strong>{{ backup_count }} backup{{ '' if backup_count == 1 else 's' }}</strong>
+        <small class="helper-text">{{ backup_directory or 'Backup directory is unavailable' }}</small>
+      </div>
+      <button type="submit" class="secondary compact" formaction="{{ url_for('create_backup_now') }}" formnovalidate>Back up now</button>
+    </div>
+    {% if backups %}
+      <div class="backup-list" aria-label="Recent backups">
+        {% for backup in backups[:10] %}
+          <div class="backup-entry">
+            <span>
+              <strong>{{ backup.name }}</strong>
+              <small>{{ backup.modified_at.strftime('%Y-%m-%d %H:%M:%S %Z') }}</small>
+            </span>
+            <span>{{ format_file_size(backup.size) }}</span>
+          </div>
+        {% endfor %}
+      </div>
+      {% if backup_count > 10 %}
+        <small class="helper-text">Showing the 10 most recent backups.</small>
+      {% endif %}
+    {% else %}
+      <div class="empty-state compact-empty-state">No backups found yet.</div>
+    {% endif %}
   </section>
 
   <section class="card">

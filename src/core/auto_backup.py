@@ -114,6 +114,31 @@ def _prune_archives(backup_directory, retention_count):
         os.remove(os.path.join(backup_directory, filename))
 
 
+def list_backups(backup_directory=None):
+    """Returns existing backup archives, newest first."""
+    backup_directory = backup_directory or get_backup_directory()
+    if not backup_directory or not os.path.isdir(backup_directory):
+        return []
+
+    backups = []
+    for filename in os.listdir(backup_directory):
+        if not filename.startswith(ARCHIVE_PREFIX) or not filename.endswith(".zip"):
+            continue
+        path = os.path.join(backup_directory, filename)
+        try:
+            statistics = os.stat(path)
+        except OSError:
+            continue
+        backups.append(
+            {
+                "name": filename,
+                "size": statistics.st_size,
+                "modified_at": datetime.fromtimestamp(statistics.st_mtime).astimezone(),
+            }
+        )
+    return sorted(backups, key=lambda backup: backup["name"], reverse=True)
+
+
 class AutoBackupService:
     """Creates atomic ZIP backups and skips save data already archived."""
 
@@ -121,9 +146,6 @@ class AutoBackupService:
         self._lock = threading.Lock()
 
     def create_backup(self, request_save=True):
-        if not config_manager.get_auto_backup_enabled():
-            return None
-
         with self._lock:
             save_games_path = get_save_games_path()
             if not save_games_path or not os.path.isdir(save_games_path):
