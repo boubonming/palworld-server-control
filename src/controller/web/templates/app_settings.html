@@ -44,7 +44,7 @@
         <strong>{{ backup_count }} backup{{ '' if backup_count == 1 else 's' }}</strong>
         <small class="helper-text">{{ backup_directory or 'Backup directory is unavailable' }}</small>
       </div>
-      <button type="submit" class="secondary compact" formaction="{{ url_for('create_backup_now') }}" formnovalidate>Back up now</button>
+      <button id="create-backup" type="submit" class="secondary compact" formaction="{{ url_for('create_backup_now') }}" formnovalidate>Back up now</button>
     </div>
     {% if backups %}
       <div class="backup-list" aria-label="Recent backups">
@@ -76,4 +76,19 @@
 
   <button type="submit">Save App Settings</button>
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const settingsForm = document.querySelector(".settings-form-stack");
+const createBackupButton = document.getElementById("create-backup");
+
+settingsForm.addEventListener("submit", event => {
+  if (event.submitter !== createBackupButton) return;
+
+  createBackupButton.disabled = true;
+  createBackupButton.setAttribute("aria-busy", "true");
+  createBackupButton.textContent = "Backing up…";
+});
+</script>
 {% endblock %}
