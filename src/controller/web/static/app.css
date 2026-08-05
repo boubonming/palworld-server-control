@@ -264,7 +264,7 @@ button.compact { margin: 0; padding: 9px 12px; }
 .backup-change { display: grid; grid-template-columns: minmax(180px, .7fr) 1fr 1fr; gap: 14px; border-bottom: 1px solid #393b44; padding-bottom: 12px; overflow-wrap: anywhere; }
 .backup-summary { display: flex; justify-content: space-between; align-items: center; gap: 18px; margin-top: 20px; }
 .backup-summary strong, .backup-entry strong, .backup-entry small { display: block; }
-.backup-list { margin-top: 16px; border: 1px solid #393b44; border-radius: 8px; overflow: hidden; }
+.backup-list { margin-top: 16px; max-height: 330px; border: 1px solid #393b44; border-radius: 8px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 .backup-entry { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 12px 14px; overflow-wrap: anywhere; }
 .backup-entry + .backup-entry { border-top: 1px solid #393b44; }
 .backup-entry small { margin-top: 4px; color: #9296a2; }
