@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}World saves · Palworld Server Control{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <h1>World saves</h1>
+    <p>See available dedicated-server worlds and choose which one loads next.</p>
+  </div>
+</div>
+{% if running %}
+  <div class="flash error">Stop the server before changing the active world.</div>
+{% endif %}
+
+<div class="card">
+  <span class="eyebrow">Current world</span>
+  <strong class="world-id">{{ active_world_id or "Not configured" }}</strong>
+  <small class="helper-text">Configured in {{ settings_path }}</small>
+</div>
+
+{% if worlds %}
+  <form method="post">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <div class="world-list">
+      {% for world in worlds %}
+        <label class="world-card{% if world.active %} active{% endif %}">
+          <input
+            type="radio"
+            name="world_id"
+            value="{{ world.id }}"
+            {% if world.active %}checked{% endif %}
+            {% if running %}disabled{% endif %}
+          >
+          <span>
+            <strong>{{ world.id }}</strong>
+            <small>Level.sav updated {{ world.modified_at.strftime("%Y-%m-%d %H:%M:%S %Z") }}</small>
+          </span>
+          {% if world.active %}<span class="status running">Active</span>{% endif %}
+        </label>
+      {% endfor %}
+    </div>
+    <div class="sticky-actions">
+      <button type="submit" {% if running %}disabled{% endif %}>Use selected world</button>
+    </div>
+  </form>
+{% else %}
+  <div class="card empty-state">
+    No world folders containing <code>Level.sav</code> were found under SaveGames/0.
+  </div>
+{% endif %}
+{% endblock %}

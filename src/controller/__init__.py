@@ -1,0 +1,1 @@
+"""Headless controller application."""

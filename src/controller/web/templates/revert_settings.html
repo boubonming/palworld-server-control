@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Review settings backup · Palworld Server Control{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <h1>Review backup</h1>
+    <p>These values will replace the current server settings.</p>
+  </div>
+</div>
+<section class="card">
+  {% if changes %}
+    <div class="backup-changes">
+      {% for key, current, backup in changes %}
+        <div class="backup-change">
+          <strong>{{ key }}</strong>
+          <span>Current: {{ "••••••••" if "password" in key|lower and current else current or "(empty)" }}</span>
+          <span>Backup: {{ "••••••••" if "password" in key|lower and backup else backup or "(empty)" }}</span>
+        </div>
+      {% endfor %}
+    </div>
+    <div class="actions">
+      <form method="post">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <button class="danger" type="submit">Revert to backup</button>
+      </form>
+      <a class="button secondary" href="{{ url_for('settings') }}">Cancel</a>
+    </div>
+  {% else %}
+    <p>The current settings already match the backup.</p>
+    <a class="button secondary" href="{{ url_for('settings') }}">Back to settings</a>
+  {% endif %}
+</section>
+{% endblock %}

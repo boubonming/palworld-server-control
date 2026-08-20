@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}App Settings · Palworld Server Control{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <h1>App Settings</h1>
+    <p>Configure controller behavior and access to this web interface.</p>
+  </div>
+</div>
+
+<form method="post" class="settings-form-stack">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+  <section class="card">
+    <h2>Idle shutdown</h2>
+    <p>Automatically save and stop the Palworld server after it remains empty.</p>
+    <div class="preference-row">
+      <label class="check"><input type="checkbox" name="auto_shutdown_enabled" {% if config.get('auto_shutdown_enabled', true) %}checked{% endif %}> Enable idle shutdown</label>
+      <label class="compact-number"><span>Empty for</span>
+        <input name="auto_shutdown_empty_minutes" type="number" min="1" max="1440" value="{{ config.get('auto_shutdown_empty_minutes', 5) }}">
+        <span>minutes</span>
+      </label>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Automatic backups</h2>
+    <p>Save and archive world data only when its contents have changed.</p>
+    <div class="preference-row">
+      <label class="check"><input type="checkbox" name="auto_backup_enabled" {% if config.get('auto_backup_enabled', true) %}checked{% endif %}> Enable automatic backups</label>
+      <label class="compact-number"><span>Every</span>
+        <input name="auto_backup_interval_minutes" type="number" min="1" max="1440" value="{{ config.get('auto_backup_interval_minutes', 30) }}">
+        <span>minutes</span>
+      </label>
+      <label class="compact-number"><span>Keep</span>
+        <input name="auto_backup_retention_count" type="number" min="1" max="100" value="{{ config.get('auto_backup_retention_count', 24) }}">
+        <span>changed backups</span>
+      </label>
+    </div>
+    <label for="auto_backup_directory">Backup location</label>
+    <input id="auto_backup_directory" name="auto_backup_directory" type="text" value="{{ config.get('auto_backup_directory', '') }}" placeholder="Default: Pal/Saved/Backups/PalworldServerControl">
+    <small class="helper-text">Leave blank for the default. In Docker, enter a path mounted inside the controller container.</small>
+    <div class="backup-summary">
+      <div>
+        <strong>{{ backup_count }} backup{{ '' if backup_count == 1 else 's' }}</strong>
+        <small class="helper-text">{{ backup_directory or 'Backup directory is unavailable' }}</small>
+      </div>
+      <button id="create-backup" type="submit" class="secondary compact" formaction="{{ url_for('create_backup_now') }}" formnovalidate>Back up now</button>
+    </div>
+    {% if backups %}
+      <div class="backup-list" aria-label="Recent backups">
+        {% for backup in backups[:10] %}
+          <div class="backup-entry">
+            <span>
+              <strong>{{ backup.name }}</strong>
+              <small>{{ backup.modified_at.strftime('%Y-%m-%d %H:%M:%S %Z') }}</small>
+            </span>
+            <span>{{ format_file_size(backup.size) }}</span>
+          </div>
+        {% endfor %}
+      </div>
+      {% if backup_count > 10 %}
+        <small class="helper-text">Showing the 10 most recent backups.</small>
+      {% endif %}
+    {% else %}
+      <div class="empty-state compact-empty-state">No backups found yet.</div>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Web access</h2>
+    <p>Change the password used to sign in to this controller.</p>
+    <label for="new_web_password">New password</label>
+    <input id="new_web_password" name="new_web_password" type="password" minlength="10" placeholder="Leave blank to keep the current password" autocomplete="new-password">
+    <small class="helper-text">Use at least 10 characters.</small>
+  </section>
+
+  <button type="submit">Save App Settings</button>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const settingsForm = document.querySelector(".settings-form-stack");
+const createBackupButton = document.getElementById("create-backup");
+
+settingsForm.addEventListener("submit", event => {
+  if (event.submitter !== createBackupButton) return;
+
+  createBackupButton.disabled = true;
+  createBackupButton.setAttribute("aria-busy", "true");
+  createBackupButton.textContent = "Backing up…";
+});
+</script>
+{% endblock %}
