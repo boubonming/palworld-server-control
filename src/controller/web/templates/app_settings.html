@@ -67,6 +67,14 @@
   </section>
 
   <section class="card">
+    <h2>Server connection</h2>
+    <p>Save the public address that players use to join this server.</p>
+    <label for="server_join_address">Server join address</label>
+    <input id="server_join_address" name="server_join_address" type="text" value="{{ config.get('server_join_address', '') }}" placeholder="palworld.example.com:12345" autocomplete="off">
+    <small class="helper-text">Enter the complete hostname and port, using your custom domain when available.</small>
+  </section>
+
+  <section class="card">
     <h2>Web access</h2>
     <p>Change the password used to sign in to this controller.</p>
     <label for="new_web_password">New password</label>

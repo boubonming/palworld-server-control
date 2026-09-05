@@ -85,12 +85,38 @@ class ServerControl(commands.Cog):
             inline=False,
         )
         embed.add_field(
+            name="!join",
+            value="Show the configured server join address without revealing passwords.",
+            inline=False,
+        )
+        embed.add_field(
             name="!help",
             value="Show this command list.",
             inline=False,
         )
         await ctx.send(embed=embed)
         self.record_activity(ctx, "Command help sent")
+
+    @commands.command(name="join")
+    async def join_server(self, ctx):
+        if not self.command_allowed(ctx):
+            return
+
+        address = config_manager.get_server_join_address()
+        if not address:
+            await ctx.send(
+                "The server join address is not configured. "
+                "Ask the server administrator for connection details."
+            )
+            self.record_activity(ctx, "Join address not configured")
+            return
+
+        await ctx.send(
+            "Join the Palworld server using Direct Connect:\n"
+            f"`{address}`\n"
+            "If a password is required, ask the server administrator privately."
+        )
+        self.record_activity(ctx, "Join instructions sent")
 
     @commands.command(name="start")
     async def start_server(self, ctx, idle_shutdown=None):

@@ -22,6 +22,7 @@ DEFAULT_AUTO_BACKUP_ENABLED = True
 DEFAULT_AUTO_BACKUP_INTERVAL_MINUTES = 30
 DEFAULT_AUTO_BACKUP_RETENTION_COUNT = 24
 DEFAULT_AUTO_BACKUP_DIRECTORY = ""
+DEFAULT_SERVER_JOIN_ADDRESS = ""
 DEFAULT_SERVER_BACKEND = "windows_native"
 MIN_AUTO_SHUTDOWN_EMPTY_MINUTES = 1
 MAX_AUTO_SHUTDOWN_EMPTY_MINUTES = 1440
@@ -81,6 +82,7 @@ def load_config():
             "auto_backup_interval_minutes": DEFAULT_AUTO_BACKUP_INTERVAL_MINUTES,
             "auto_backup_retention_count": DEFAULT_AUTO_BACKUP_RETENTION_COUNT,
             "auto_backup_directory": DEFAULT_AUTO_BACKUP_DIRECTORY,
+            "server_join_address": DEFAULT_SERVER_JOIN_ADDRESS,
         }
         save_config()
     else:
@@ -100,6 +102,7 @@ def load_config():
         "auto_backup_retention_count", DEFAULT_AUTO_BACKUP_RETENTION_COUNT
     )
     CONFIG.setdefault("auto_backup_directory", DEFAULT_AUTO_BACKUP_DIRECTORY)
+    CONFIG.setdefault("server_join_address", DEFAULT_SERVER_JOIN_ADDRESS)
     CONFIG.setdefault("palworld_channel_ids", [])
     CONFIG.setdefault("server_backend", DEFAULT_SERVER_BACKEND)
     CONFIG.setdefault("docker_compose_dir", "")
@@ -115,6 +118,15 @@ def load_config():
 def save_config():
     with open(get_config_path(), "w") as f:
         json.dump(CONFIG, f, indent=4)
+
+
+def get_server_join_address():
+    return str(CONFIG.get("server_join_address", DEFAULT_SERVER_JOIN_ADDRESS) or "").strip()
+
+
+def set_server_join_address(address):
+    CONFIG["server_join_address"] = str(address or "").strip()
+    save_config()
 
 def get_gui_close_behavior():
     """Returns the configured GUI close behavior, defaulting safely to minimize."""

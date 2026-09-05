@@ -1,7 +1,7 @@
 import os
 import sys
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QIntValidator
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -21,6 +21,8 @@ from desktop.ui.page import Page
 
 
 class AppSettingsPage(Page):
+    server_join_address_changed = Signal(str)
+
     def __init__(self):
         super().__init__("App Settings", "Configure the manager application")
         form = QFormLayout()
@@ -38,6 +40,11 @@ class AppSettingsPage(Page):
             "Compose directory" if config_manager.is_docker_backend() else "Palworld directory",
             self.directory,
         )
+
+        self.server_join_address = QLineEdit(config_manager.get_server_join_address())
+        self.server_join_address.setPlaceholderText("palworld.example.com:12345")
+        self.server_join_address.editingFinished.connect(self.save_server_join_address)
+        form.addRow("Server join address", self.server_join_address)
 
         self.close_behavior = QCheckBox("Minimize to system tray when exit")
         self.close_behavior.setChecked(config_manager.get_gui_close_behavior() == "minimize")
@@ -201,6 +208,12 @@ class AppSettingsPage(Page):
 
     def save_directory(self):
         config_manager.update_paths_from_dir(os.path.normpath(self.directory.text()))
+
+    def save_server_join_address(self):
+        config_manager.set_server_join_address(self.server_join_address.text())
+        address = config_manager.get_server_join_address()
+        self.server_join_address.setText(address)
+        self.server_join_address_changed.emit(address)
 
     def save_auto_shutdown_enabled(self, enabled):
         config_manager.set_auto_shutdown_enabled(enabled)

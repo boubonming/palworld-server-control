@@ -83,6 +83,9 @@ button.secondary { background: #34363e; border: 1px solid #545761; }
 .details { display: grid; grid-template-columns: max-content 1fr; gap: 8px 18px; margin: 24px 0 0; }
 .details dt { color: #9498a3; }
 .details dd { margin: 0; overflow-wrap: anywhere; }
+.copyable-value { display: flex; align-items: center; gap: 10px; }
+.copyable-value code { overflow-wrap: anywhere; }
+.copyable-value button { flex: 0 0 auto; }
 .activity {
   margin: 0;
   white-space: pre-wrap;
