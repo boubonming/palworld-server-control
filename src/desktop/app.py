@@ -113,6 +113,9 @@ class MainWindow(QMainWindow):
             self.pages.addWidget(page)
         self.navigation.currentRowChanged.connect(self.pages.setCurrentIndex)
         self.server_settings.saved.connect(self.server_status.refresh)
+        self.app_settings.server_join_address_changed.connect(
+            self.server_status.set_server_join_address
+        )
         discord_signals.bot_status_changed.connect(self._finish_exit)
 
         shell = QWidget()

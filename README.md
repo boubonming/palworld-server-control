@@ -4,6 +4,7 @@ Palworld Server Control is a lightweight manager for a Palworld dedicated server
 
 - Palworld server folder and `PalWorldSettings.ini` management
 - Server status monitoring and settings editing
+- Saved server join address with one-click copy from Server Status
 - Save, shutdown, and idle auto-stop controls through the local REST API
 - Optional Discord bot controls for `!start`, `!stop`, and `!settings`
 - System-tray and Windows-startup behavior
@@ -153,6 +154,7 @@ Available commands:
 - `!start off` — starts the server without idle shutdown for this session only
 - `!stop` — saves and requests a graceful shutdown
 - `!settings` — displays server settings
+- `!join` — shows the saved server join address without displaying a password
 - `!help` — displays the available Discord commands
 
 The Discord bot can be started manually from the UI or automatically with the application.

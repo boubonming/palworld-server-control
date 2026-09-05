@@ -2,7 +2,7 @@ from datetime import datetime
 import urllib.error
 
 from PySide6.QtCore import QTimer, Signal
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPlainTextEdit, QPushButton
+from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton
 
 from core import config_manager, server_readiness
 from desktop.ui.page import Page
@@ -35,6 +35,16 @@ class ServerStatusPage(Page):
         self.directory_label.setWordWrap(True)
         self.content_layout.addWidget(self.directory_label)
 
+        join_address_row = QHBoxLayout()
+        self.join_address_label = QLabel()
+        self.join_address_label.setWordWrap(True)
+        self.copy_join_address_button = QPushButton("Copy")
+        self.copy_join_address_button.setObjectName("secondaryAction")
+        self.copy_join_address_button.clicked.connect(self.copy_join_address)
+        join_address_row.addWidget(self.join_address_label, 1)
+        join_address_row.addWidget(self.copy_join_address_button)
+        self.content_layout.addLayout(join_address_row)
+
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
         self.log.setMaximumBlockCount(1000)
@@ -51,7 +61,20 @@ class ServerStatusPage(Page):
     def refresh(self, log_status=False):
         directory = config_manager.CONFIG.get("palworld_dir", "Not configured")
         self.directory_label.setText(f"Server directory:\n{directory}")
+        self.set_server_join_address(config_manager.get_server_join_address())
         self.update_status(server_readiness.get_status(), log_status=log_status)
+
+    def set_server_join_address(self, address):
+        address = str(address or "").strip()
+        self.join_address_label.setText(
+            f"Join address:\n{address}" if address else "Join address: Not configured"
+        )
+        self.copy_join_address_button.setEnabled(bool(address))
+
+    def copy_join_address(self):
+        address = config_manager.get_server_join_address()
+        if address:
+            QApplication.clipboard().setText(address)
 
     def update_status(self, status, log_status=True):
         status_changed = status.display != self._last_logged_status

@@ -35,6 +35,17 @@
       <dt>Container</dt><dd>{{ config.docker_container_name }}</dd>
       <dt>Settings file</dt><dd>{{ config.palworld_ini_path }}</dd>
       <dt>Socket Proxy</dt><dd>{{ config.docker_proxy_url }}</dd>
+      <dt>Join address</dt>
+      <dd>
+        {% if config.get('server_join_address') %}
+          <div class="copyable-value">
+            <code id="server-join-address">{{ config.get('server_join_address') }}</code>
+            <button id="copy-server-join-address" class="secondary compact" type="button">Copy</button>
+          </div>
+        {% else %}
+          <span>Not configured — save it in App Settings.</span>
+        {% endif %}
+      </dd>
     </dl>
   </section>
 
@@ -66,6 +77,33 @@
 {% block scripts %}
 {% if configured %}
 <script>
+const copyJoinAddressButton = document.getElementById("copy-server-join-address");
+if (copyJoinAddressButton) {
+  copyJoinAddressButton.addEventListener("click", async () => {
+    const address = document.getElementById("server-join-address").textContent.trim();
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(address);
+      } else {
+        const temporaryInput = document.createElement("textarea");
+        temporaryInput.value = address;
+        temporaryInput.setAttribute("readonly", "");
+        temporaryInput.style.position = "fixed";
+        temporaryInput.style.opacity = "0";
+        document.body.appendChild(temporaryInput);
+        temporaryInput.select();
+        if (!document.execCommand("copy")) throw new Error("Copy command failed");
+        temporaryInput.remove();
+      }
+      copyJoinAddressButton.textContent = "Copied";
+      window.setTimeout(() => { copyJoinAddressButton.textContent = "Copy"; }, 1600);
+    } catch (_error) {
+      copyJoinAddressButton.textContent = "Copy failed";
+      window.setTimeout(() => { copyJoinAddressButton.textContent = "Copy"; }, 2000);
+    }
+  });
+}
+
 setInterval(async () => {
   const response = await fetch("{{ url_for('status_api') }}");
   if (!response.ok) return;

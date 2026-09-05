@@ -44,6 +44,9 @@ def register_app_settings_routes(app, runtime):
             config_manager.set_auto_backup_directory(
                 request.form.get("auto_backup_directory", "")
             )
+            config_manager.set_server_join_address(
+                request.form.get("server_join_address", "")
+            )
             if new_password:
                 config_manager.CONFIG["web_password_hash"] = generate_password_hash(
                     new_password
