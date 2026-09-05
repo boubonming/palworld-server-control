@@ -50,6 +50,17 @@
     }
   }
 
+  async function isServerRunning() {
+    try {
+      const response = await fetch("{{ url_for('status_api') }}");
+      if (!response.ok) return false;
+      const data = await response.json();
+      return data.state === "running";
+    } catch (_error) {
+      return false;
+    }
+  }
+
   function scheduleAutoRefresh() {
     clearTimeout(autoRefreshTimer);
     if (autoRefresh.checked && !document.hidden) {
@@ -59,11 +70,13 @@
 
   async function refreshAndSchedule() {
     clearTimeout(autoRefreshTimer);
-    await loadServerLogs();
+    if (await isServerRunning()) {
+      await loadServerLogs();
+    }
     scheduleAutoRefresh();
   }
 
-  refresh.addEventListener("click", refreshAndSchedule);
+  refresh.addEventListener("click", loadServerLogs);
   autoRefresh.addEventListener("change", () => {
     if (autoRefresh.checked) {
       refreshAndSchedule();
